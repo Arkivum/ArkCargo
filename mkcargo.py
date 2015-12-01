@@ -32,7 +32,25 @@ def usage():
     print "            <name>-<iso timestamp>.created  - files created since previous snapshot"
     print "            <name>-<iso timestamp>.modified - files modified since previous snapshot"
     print "            <name>-<iso timestamp>.errors   - files it wasn't possible to compare"
+    print "            <name>-<iso timestamp>.folders  - a list of the leaf nodes in the folder tree"
     print "-jnn      - Controls multi-threading. By default the program will create one producer thread to scan the file system and one hashing thread per CPU core. Multi-threading causes output filenames to be in non-deterministic order, as files that take longer to hash will be delayed while they are hashed. If a deterministic order is required, specify -j0 to disable multi-threading."
+    outputClose(outputFiles)
+    return;
+
+def outputOpen(files):
+    for i in files
+        if os.path.isfile(files.values(i)):
+            sys.stderr.write("%s already exists!\n"%files.values(i))
+            outputClose()
+            exit(1)
+        open(files.values(i), 'w')
+     return ;
+
+def outputClose(fileshandles):
+    for i in files
+        close(files.values(i), 'w')
+     return;
+
 
 def md5Worker(i, q):
     while True:
@@ -45,7 +63,7 @@ def md5sum(filename, blocksize=65536):
     with open(filename, "rb") as f:
         for block in iter(lambda: f.read(blocksize), ""):
             hash.update(block)
-    return hash.hexdigest()
+    return hash.hexdigest();
 
 
 def compareFunnyFile(fileA, fileB):
@@ -58,7 +76,6 @@ def compareFunnyFile(fileA, fileB):
     else:
         hashA = md5sum(fileA)
         hashB = md5sum(fileB)
-
     return hashA == hashB;
 
 
@@ -87,6 +104,7 @@ if __name__ == '__main__':
     opt_snapshotTimestamp = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
     opt_previousSnapshot = ""
     opt_sourceSnapshot = ""
+    opt_outputDirectory = ""
     opt_sourceLive = ""
     opt_allNew = True
 
@@ -105,10 +123,18 @@ if __name__ == '__main__':
             else:
                 opt_snapshotTimestamp = tmp_timestamp
             continue
+        elif i == '-o' or i =='-O':
+            opt_outputdirectory = next(it)
+            if not os.path.isdir(opt_poutputDirectory):
+                sys.stderr.write("Can not find output directory %s\n"%opt_outputDirectory)
+                sys.exit(-1)
+            else:
+                opt_allNew = False
+            continue
         elif i == '-p' or i =='-P':
             opt_previousSnapshot = next(it)
             if not os.path.isdir(opt_previousSnapshot):
-                sys.stderr.write("Cannot find open previous snapshot directory %s\n"%opt_previousSnapshot)
+                sys.stderr.write("Can not find open previous snapshot directory %s\n"%opt_previousSnapshot)
                 sys.exit(-1)
             else:
                 opt_allNew = False
@@ -136,6 +162,17 @@ if __name__ == '__main__':
             opt_threads = int(i[2:])
             continue
 
+    # We'll need somewhere to output this lot
+    filebase = opt_outputdirectory+opt_snapshotName+"-"+opt_snapshotTimestamp
+    outputFiles['deleted'] = filebase+".deleted"
+    outputFiles['common'] = filebase+".common"
+    outputFiles['created'] = filebase+".created"
+    outputFiles['modified'] = filebase+".modified"
+    outputFiles['errors'] = filebase+".errors"
+    outputFiles['folders'] = filebase+".folders"
+
+    outputOpen(outputFiles)
+
     if (opt_sourceSnapshot and opt_sourceLive):
 	sys.stderr.write("Nothing to do?\n")
         usage()
@@ -145,4 +182,4 @@ if __name__ == '__main__':
     else:
         fullSnapshot()
 
-
+    outputClose(outputFiles)
