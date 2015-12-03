@@ -12,6 +12,7 @@ from filecmp import dircmp
 # To stop the queue from consuming all the RAM available
 MaxQueue = 1000
 
+
 def usage():
     print "Usage: md5cargo.py [OPTIONS]"
     print "-n <dataset name>"
@@ -27,37 +28,22 @@ def usage():
     print "-p <dir>  - previous snapshot, if omitted then a full ingest based on the file tree passed with"
     print "            either the -l or -s options."
     print "-o <dir>  - output directory, where to save the output files."
-    print "            <name>-<iso timestamp>.deleted  - files delete since previous snapshot"
-    print "            <name>-<iso timestamp>.common   - files unchanged since previous snapshot"
-    print "            <name>-<iso timestamp>.created  - files created since previous snapshot"
-    print "            <name>-<iso timestamp>.modified - files modified since previous snapshot"
-    print "            <name>-<iso timestamp>.errors   - files it wasn't possible to compare"
-    print "            <name>-<iso timestamp>.folders  - a list of the leaf nodes in the folder tree"
-    print "-jnn      - Controls multi-threading. By default the program will create one producer thread to scan the file system and one hashing thread per CPU core. Multi-threading causes output filenames to be in non-deterministic order, as files that take longer to hash will be delayed while they are hashed. If a deterministic order is required, specify -j0 to disable multi-threading."
-    outputClose(outputFiles)
+    print "            <name>/<iso timestamp>/log       - messages and errors during the run"
+    print "            <name>/<iso timestamp>/removed   - files delete since previous snapshot"
+    print "            <name>/<iso timestamp>/unchanged - files unchanged since previous snapshot"
+    print "            <name>/<iso timestamp>/added     - files created since previous snapshot"
+    print "            <name>/<iso timestamp>/modified  - files modified since previous snapshot"
+    print "            <name>/<iso timestamp>/failed    - files that couldn't be processed"
+    print "            <name>/<iso timestamp>/directory - a list of the leaf nodes in the folder tree"
+    print "            <name>/<iso timestamp>/cargo     - a cargo file is generated in snapshot mode, "
+    print "                                               containing all the addeded and modified files "
+    print "                                               along with their MD5 checksum, in MD5deep format."
+    print "-jnn      - Controls multi-threading. By default the program will create one thread per CPU core, one thread is used for writing to the output files, the rest for scanning the file system and calculating MD5 hashes. Multi-threading causes output filenames to be in non-deterministic order, as files that take longer to hash will be delayed while they are hashed."
     return;
 
-def outputOpen(files):
-    for i in files
-        if os.path.isfile(files.values(i)):
-            sys.stderr.write("%s already exists!\n"%files.values(i))
-            outputClose()
-            exit(1)
-        open(files.values(i), 'w')
-     return ;
 
-def outputClose(fileshandles):
-    for i in files
-        close(files.values(i), 'w')
-     return;
-
-
-def md5Worker(i, q):
-    while True:
-        path = q.get()
-        formatOutput(md5sum(path, md5blocklen),  path)
-        q.task_done()
-
+# Calculate the MD5 sum of the file
+#
 def md5sum(filename, blocksize=65536):
     hash = hashlib.md5()
     with open(filename, "rb") as f:
@@ -66,11 +52,42 @@ def md5sum(filename, blocksize=65536):
     return hash.hexdigest();
 
 
+# outputWorker used by threads to process output to the various output files. The must never be more
+# than of this type of thread running.
+#
+def outputResult(i, q):
+    while True:
+        file, message = q.get()
+        if (file == "cargo"):
+            eolchar = opt_cargoEOL
+        else:
+	    eolchar = opt_snapshotEOL
+
+        try:
+            with open(filebase+file, "a") as outputFile:
+                outputFile.write(message+eolchar)
+        except:
+            sys.stderr.write("Cannot write to %s\n"%file)
+            sys.stderr.write("%s: %s\n"%file%message)
+        q.task_done()
+
+
+# pathWorker used by threads to process the new snapshot file tree
+#
+def processPath(i, q):
+    while True:
+        path = q.get()
+        formatOutput(md5sum(path, md5blocklen),  path)
+        q.task_done()
+
+# for files that can't be processed by dircmp we have to expend some extra energy and use
+# MD5 checksums
+#
 def compareFunnyFile(fileA, fileB):
-    if not os.path.isdir(fileA):
+    if not os.path.isfile(fileA):
         sys.stderr.write("%s is not a file!\n"%fileA)
         sys.exit(-1)
-    elif not os.path.isdir(fileA):
+    elif not os.path.isfile(fileA):
         sys.stderr.write("%s is not a file!\n"%fileA)
         sys.exit(-1)
     else:
@@ -82,8 +99,9 @@ def compareFunnyFile(fileA, fileB):
 def fullSnapshot():
     # Lets hoover up everything
     sys.stdout.write("Should really implement this!")
-    sys.extit(1)
-    return;
+    sys.exit(1)
+
+
 
 def incrSnapshot():
     if (opt_sourceLive):
@@ -92,22 +110,25 @@ def incrSnapshot():
 	opt_source = opt_sourceSnapshot
 
     deltaDir = dircmp(opt_previousSnapshot, opt_source)
-    deltaDir.report_partial_closure()
+    for dir in deltaDir.common_dirs:
+	output(dir, "same")
 
     return;
 
+
 if __name__ == '__main__':
 
-    opt_endofline = "\0\n"
-    opt_threads = multiprocessing.cpu_count()
+    opt_snapshotEOL = "\n"
+    opt_cargoEOL = "\0"
+    opt_threads = multiprocessing.cpu_count()-1
     opt_snapshotName =""
+    opt_filebase ="./"
     opt_snapshotTimestamp = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
     opt_previousSnapshot = ""
     opt_sourceSnapshot = ""
     opt_outputDirectory = ""
     opt_sourceLive = ""
     opt_allNew = True
-
 
     args = sys.argv[1:]
     it = iter(args)
@@ -124,8 +145,8 @@ if __name__ == '__main__':
                 opt_snapshotTimestamp = tmp_timestamp
             continue
         elif i == '-o' or i =='-O':
-            opt_outputdirectory = next(it)
-            if not os.path.isdir(opt_poutputDirectory):
+            opt_outputDirectory = next(it)
+            if not os.path.isdir(opt_outputDirectory):
                 sys.stderr.write("Can not find output directory %s\n"%opt_outputDirectory)
                 sys.exit(-1)
             else:
@@ -159,27 +180,34 @@ if __name__ == '__main__':
                 sys.exit(-1)
             continue
         elif i.startswith('-j'):
-            opt_threads = int(i[2:])
+            opt_threads = int(i[2:]) -1
+            # we need to save 1 thread for processing the results queue
             continue
 
-    # We'll need somewhere to output this lot
-    filebase = opt_outputdirectory+opt_snapshotName+"-"+opt_snapshotTimestamp
-    outputFiles['deleted'] = filebase+".deleted"
-    outputFiles['common'] = filebase+".common"
-    outputFiles['created'] = filebase+".created"
-    outputFiles['modified'] = filebase+".modified"
-    outputFiles['errors'] = filebase+".errors"
-    outputFiles['folders'] = filebase+".folders"
-
-    outputOpen(outputFiles)
-
     if (opt_sourceSnapshot and opt_sourceLive):
-	sys.stderr.write("Nothing to do?\n")
+        sys.stderr.write("Nothing to do?\n")
         usage()
-	sys.exit(0) 
-    elif opt_previousSnapshot:
-        incrSnapshot()
-    else:
-        fullSnapshot()
+        sys.exit(0)
 
-    outputClose(outputFiles)
+    # We'll need somewhere to output this lot
+    filebase = opt_outputDirectory+opt_snapshotName+"/"+opt_snapshotTimestamp+"/"
+    os.makedirs(filebase)
+
+    # initialise Queues
+    pathQueue = Queue(MaxQueue)
+    resultsQueue = Queue(opt_threads*MaxQueue)
+
+    # setup the single results worker
+    resultsWorker = Thread(target=outputResult, args=(i, resultsQueue))
+    resultsWorker.setDaemon(True)
+    resultsWorker.start()
+
+    # setup the pool of path workers
+    for i in range(opt_threads):
+        pathWorker = Thread(target=processPath, args=(i, pathQueue))
+        pathWorker.setDaemon(True)
+        pathWorker.start()
+
+    # lets just hang back and wait for the queues to empty
+    pathQueue.join()
+    resultsQueue.join()
