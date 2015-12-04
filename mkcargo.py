@@ -83,11 +83,11 @@ def processIncr(i, q, r):
 
         # What have we picked up from the queue
         if os.path.isdir(absPath):
-            r.put(("directory", "%s%s"%(absPath, opt_snapshotEOL)))
+            r.put(("directory", "%s%s"%(relPath, opt_snapshotEOL)))
 
             if os.path.isdir(oldPath):
                 for removed in set(os.listdir(oldPath)).difference(os.listdir(absPath)):
-                    r.put(("removed", "%s%s"%(absPath, opt_snapshotEOL)))
+                    r.put(("removed", "%s%s"%(relPath+"/"+removed, opt_snapshotEOL)))
                 for common in set(os.listdir(absPath)).intersection(os.listdir(oldPath)):
                     q.put(relPath+"/"+common)
                 for added in set(os.listdir(absPath)).difference(os.listdir(oldPath)):
@@ -98,34 +98,34 @@ def processIncr(i, q, r):
 
         elif (not opt_followSymlink) and os.path.islink(absPath):
             if os.path.realpath(oldPath) == os.path.realpath(absPath):
-                r.put(("unchanged", "%s%s"%(absPath, opt_snapshotEOL)))
+                r.put(("unchanged", "%s%s"%(relPath, opt_snapshotEOL)))
             else:
-                r.put(("symlink", "%s %s%s"%(absPath, os.path.realpath(absPath), opt_snapshotEOL)))
+                r.put(("symlink", "%s %s%s"%(relPath, os.path.realpath(absPath), opt_snapshotEOL)))
 
         elif os.path.isfile(absPath):
             if os.path.isfile(oldPath):
                 if filecmp.cmp(oldPath, absPath):
-                    r.put(("unchanged", "%s%s"%(absPath, opt_snapshotEOL)))
+                    r.put(("unchanged", "%s%s"%(relPath, opt_snapshotEOL)))
                 else:
-                    r.put(("modified", "%s%s"%(absPath, opt_snapshotEOL)))
+                    r.put(("modified", "%s%s"%(relPath, opt_snapshotEOL)))
                     if opt_sourceType == "SNAPSHOT":
                         cargo = True
             else:    
-                r.put(("added", "%s%s"%(absPath, opt_snapshotEOL)))
+                r.put(("added", "%s%s"%(relPath, opt_snapshotEOL)))
                 if opt_sourceType == "SNAPSHOT":
                     cargo = True
             
-                if cargo:
-                    absPath = absPath.replace("\r","")
-                    absPath = absPath.replace("\n","")
+            if cargo:
+                absPath = absPath.replace("\r","")
+                absPath = absPath.replace("\n","")
 
-                    hash = md5sum(absPath)
-                    hash = hash.replace(" ","")
+                hash = md5sum(absPath)
+                hash = hash.replace(" ","")
 
-                    r.put(("cargo", "%s  %s%s"%(hash, absPath, opt_cargoEOL)))
+                r.put(("cargo", "%s  %s%s"%(hash, absPath, opt_cargoEOL)))
 
         else:
-            r.put(("error", "invalid path: %s%s"%(absPath, opt_snapshotEOL)))
+            r.put(("error", "invalid path: %s%s"%(relPath, opt_snapshotEOL)))
 
         q.task_done()
 
@@ -144,14 +144,14 @@ def processFull(i, q, r):
         if os.path.isdir(absPath):
             for childPath in os.listdir(absPath):
 		q.put(relPath+"/"+childPath)
-            r.put(("directory", "%s%s"%(absPath, opt_snapshotEOL)))
+            r.put(("directory", "%s%s"%(relPath, opt_snapshotEOL)))
 
         elif (not opt_followSymlink) and os.path.islink(absPath):
-            r.put(("symlink", "%s %s%s"%(absPath, os.path.realpath(absPath), opt_snapshotEOL)))
+            r.put(("symlink", "%s %s%s"%(relPath, os.path.realpath(absPath), opt_snapshotEOL)))
 
         elif os.path.isfile(absPath):
             if not (opt_followSymlink and os.path.islink(absPath)):
-                r.put(("added", "%s%s"%(absPath, opt_snapshotEOL)))
+                r.put(("added", "%s%s"%(relPath, opt_snapshotEOL)))
                 if (opt_sourceType == "SNAPSHOT"):
                     absPath = absPath.replace("\r","")
                     absPath = absPath.replace("\n","")
@@ -162,7 +162,7 @@ def processFull(i, q, r):
                     r.put(("cargo", "%s  %s%s"%(hash, absPath, opt_cargoEOL)))
 
         else:
-            r.put(("error", "invalid path: %s%s"%(absPath, opt_snapshotEOL)))
+            r.put(("error", "invalid path: %s%s"%(relPath, opt_snapshotEOL)))
         q.task_done()
 
 
@@ -180,13 +180,16 @@ def compareFunnyFile(fileA, fileB, r):
     return hashA == hashB;
 
 def logConfig(r):
-    r.put(("log", "pathWorkers %s%s"%(opt_threads, opt_snapshotEOL)))
-    r.put(("log", "snapshotName %s%s"%(opt_snapshotName, opt_snapshotEOL)))
-    r.put(("log", "timestamp %s%s"%(opt_snapshotTimestamp, opt_snapshotEOL)))
-    r.put(("log", "previousSnapshot %s%s"%(opt_previousSnapshot, opt_snapshotEOL)))
-    r.put(("log", "currentSnapshot %s%s"%(opt_currentSnapshot, opt_snapshotEOL)))
-    r.put(("log", "sourceType %s%s"%(opt_sourceType, opt_snapshotEOL)))
-    r.put(("log", "followSymlinks %s%s"%(opt_followSymlink, opt_snapshotEOL)))
+    r.put(("config", "pathWorkers %s%s"%(opt_threads, opt_snapshotEOL)))
+    r.put(("config", "reportWorkers 1%s"%(opt_snapshotEOL)))
+    r.put(("config", "snapshotName %s%s"%(opt_snapshotName, opt_snapshotEOL)))
+    r.put(("config", "timestamp %s%s"%(opt_snapshotTimestamp, opt_snapshotEOL)))
+    r.put(("config", "previousSnapshot %s%s"%(opt_previousSnapshot, opt_snapshotEOL)))
+    r.put(("config", "currentSnapshot %s%s"%(opt_currentSnapshot, opt_snapshotEOL)))
+    r.put(("config", "previousAbsPath %s%s"%(os.path.abspath(opt_previousSnapshot), opt_snapshotEOL)))
+    r.put(("config", "currentAbsPath %s%s"%(os.path.abspath(opt_currentSnapshot), opt_snapshotEOL)))
+    r.put(("config", "sourceType %s%s"%(opt_sourceType, opt_snapshotEOL)))
+    r.put(("config", "followSymlinks %s%s"%(opt_followSymlink, opt_snapshotEOL)))
     return;
 
 if __name__ == '__main__':
