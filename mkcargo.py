@@ -4,9 +4,9 @@
 
 import os, sys, hashlib, re, multiprocessing
 from Queue import Queue
-from threading import Thread
+from threading import Thread,current_thread
 import time, datetime, errno
-from filecmp import dircmp
+import filecmp
 
 
 # To stop the queue from consuming all the RAM available
@@ -76,29 +76,57 @@ def processIncr(i, q, r):
         relPath = q.get()
         oldPath = os.path.abspath(opt_previousSnapshot+"/"+relPath)
         absPath = os.path.abspath(opt_currentSnapshot+"/"+relPath)
+        cargo = False
+
+        if opt_debug:
+            r.put(("log", "Thread %s - %s%s"%(current_thread().getName(), relPath, opt_snapshotEOL)))
 
         # What have we picked up from the queue
         if os.path.isdir(absPath):
-            for childPath in os.listdir(absPath):
-                q.put(relPath+"/"+childPath)
             r.put(("directory", "%s%s"%(absPath, opt_snapshotEOL)))
 
+            if os.path.isdir(oldPath):
+                for removed in set(os.listdir(oldPath)).difference(os.listdir(absPath)):
+                    r.put(("removed", "%s%s"%(absPath, opt_snapshotEOL)))
+                for common in set(os.listdir(absPath)).intersection(os.listdir(oldPath)):
+                    q.put(relPath+"/"+common)
+                for added in set(os.listdir(absPath)).difference(os.listdir(oldPath)):
+                    q.put(relPath+"/"+added)
+            else:
+                for childPath in os.listdir(absPath):
+                    q.put(relPath+"/"+childPath)
+
         elif (not opt_followSymlink) and os.path.islink(absPath):
-            r.put(("symlink", "%s %s%s"%(absPath, os.path.realpath(absPath), opt_snapshotEOL)))
+            if os.path.realpath(oldPath) == os.path.realpath(absPath):
+                r.put(("unchanged", "%s%s"%(absPath, opt_snapshotEOL)))
+            else:
+                r.put(("symlink", "%s %s%s"%(absPath, os.path.realpath(absPath), opt_snapshotEOL)))
 
         elif os.path.isfile(absPath):
-            r.put(("added", "%s%s"%(absPath, opt_snapshotEOL)))
-            if (opt_sourceType == "SNAPSHOT"):
-                absPath = absPath.replace("\r","")
-                absPath = absPath.replace("\n","")
+            if os.path.isfile(oldPath):
+                if filecmp.cmp(oldPath, absPath):
+                    r.put(("unchanged", "%s%s"%(absPath, opt_snapshotEOL)))
+                else:
+                    r.put(("modified", "%s%s"%(absPath, opt_snapshotEOL)))
+                    if opt_sourceType == "SNAPSHOT":
+                        cargo = True
+            else:    
+                r.put(("added", "%s%s"%(absPath, opt_snapshotEOL)))
+                if opt_sourceType == "SNAPSHOT":
+                    cargo = True
+            
+                if cargo:
+                    absPath = absPath.replace("\r","")
+                    absPath = absPath.replace("\n","")
 
-                hash = md5sum(absPath)
-                hash = hash.replace(" ","")
+                    hash = md5sum(absPath)
+                    hash = hash.replace(" ","")
 
-                r.put(("cargo", "%s  %s%s"%(hash, absPath, opt_cargoEOL)))
+                    r.put(("cargo", "%s  %s%s"%(hash, absPath, opt_cargoEOL)))
 
         else:
             r.put(("error", "invalid path: %s%s"%(absPath, opt_snapshotEOL)))
+
         q.task_done()
 
 
@@ -108,6 +136,9 @@ def processFull(i, q, r):
     while not terminateThreads:
         relPath = q.get()
         absPath = os.path.abspath(opt_currentSnapshot+"/"+relPath)
+
+        if opt_debug:
+            r.put(("log", "Thread %s - %s%s"%(current_thread().getName(), relPath, opt_snapshotEOL)))
 
         # What have we picked up from the queue
         if os.path.isdir(absPath):
@@ -148,6 +179,15 @@ def compareFunnyFile(fileA, fileB, r):
         sys.stderr.write(message)
     return hashA == hashB;
 
+def logConfig(r):
+    r.put(("log", "pathWorkers %s%s"%(opt_threads, opt_snapshotEOL)))
+    r.put(("log", "snapshotName %s%s"%(opt_snapshotName, opt_snapshotEOL)))
+    r.put(("log", "timestamp %s%s"%(opt_snapshotTimestamp, opt_snapshotEOL)))
+    r.put(("log", "previousSnapshot %s%s"%(opt_previousSnapshot, opt_snapshotEOL)))
+    r.put(("log", "currentSnapshot %s%s"%(opt_currentSnapshot, opt_snapshotEOL)))
+    r.put(("log", "sourceType %s%s"%(opt_sourceType, opt_snapshotEOL)))
+    r.put(("log", "followSymlinks %s%s"%(opt_followSymlink, opt_snapshotEOL)))
+    return;
 
 if __name__ == '__main__':
     opt_snapshotEOL = "\n"
@@ -161,11 +201,14 @@ if __name__ == '__main__':
     opt_outputDirectory = ""
     opt_sourceType = ""
     opt_followSymlink = False
+    opt_debug = False
     
     args = sys.argv[1:]
     it = iter(args)
     for i in it:
-        if i == '-n' or i =='-N':
+        if i.upper() =='-DEBUG':
+            opt_debug = True
+        elif i == '-n' or i =='-N':
             opt_snapshotName = next(it)
             continue 
         elif i == '-t':
@@ -232,7 +275,10 @@ if __name__ == '__main__':
 
     # initialise Queues
     pathQueue = Queue(MaxQueue)
+    pathQueue.put(".")
     resultsQueue = Queue(opt_threads*MaxQueue)
+
+    logConfig(resultsQueue)
 
     # setup the single results worker
     resultsWorker = Thread(target=outputResult, args=(i, resultsQueue))
@@ -248,7 +294,6 @@ if __name__ == '__main__':
         pathWorker.setDaemon(True)
         pathWorker.start()
 
-        pathQueue.put(".")
 
     try:
 
