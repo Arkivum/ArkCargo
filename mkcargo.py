@@ -22,7 +22,8 @@ def usage():
     print "          - if not supplied the timestamp will be generated at the start of a run. Where a"
     print "            filesystem snapshot is being processed then it is more meaningful to use the "
     print "            timestamp from the newer snapshot."
-    print "-f <file> - ingest based on a file listing file paths to procress in the cargo file."
+    print "-f        - follow symlinks and ingest their target, defaults to outputing symlinks and their"
+    print "            targets in the symlink file."
     print "-l <dir>  - live mode, to be used when the source filesystem does not support snapshots."
     print "-s <dir>  - snapshot mode, used when the new source filesystem is a snapshot."
     print "-p <dir>  - previous snapshot, if omitted then a full ingest based on the file tree passed with"
@@ -38,6 +39,7 @@ def usage():
     print "            <name>/<iso timestamp>/cargo     - a cargo file is generated in snapshot mode, "
     print "                                               containing all the addeded and modified files "
     print "                                               along with their MD5 checksum, in MD5deep format."
+    print "            <name>/<iso timestamp>/symlink   - a list of the symlinks and their targets."
     print "-jnn      - Controls multi-threading. By default the program will create one thread per CPU core, one thread is used for writing to the output files, the rest for scanning the file system and calculating MD5 hashes. Multi-threading causes output filenames to be in non-deterministic order, as files that take longer to hash will be delayed while they are hashed."
     return;
 
@@ -71,7 +73,7 @@ def outputResult(i, q):
 # pathWorker used by threads to process an incremental snapshot of the file tree
 #
 def processIncr(i, q, r):
-    while True:
+    while not terminateThreads:
         relPath = q.get()
         oldPath = os.path.abspath(opt_previousSnapshot+"/"+relPath)
         absPath = os.path.abspath(opt_currentSnapshot+"/"+relPath)
@@ -104,7 +106,7 @@ def processIncr(i, q, r):
 # pathWorker used by threads to process a Full snapshot of the file tree
 #
 def processFull(i, q, r):
-    while True:
+    while not terminateThreads:
         relPath = q.get()
         absPath = os.path.abspath(opt_currentSnapshot+"/"+relPath)
 
@@ -149,7 +151,6 @@ def compareFunnyFile(fileA, fileB, r):
 
 
 if __name__ == '__main__':
-
     opt_snapshotEOL = "\n"
     opt_cargoEOL = "\0"
     opt_threads = multiprocessing.cpu_count()-1
@@ -161,7 +162,7 @@ if __name__ == '__main__':
     opt_outputDirectory = ""
     opt_sourceType = ""
     opt_followSymlink = False
-
+    
     args = sys.argv[1:]
     it = iter(args)
     for i in it:
@@ -245,9 +246,12 @@ if __name__ == '__main__':
         pathWorker.setDaemon(True)
         pathWorker.start()
 
-    pathQueue.put(".")
+    try:
+        pathQueue.put(".")
 
-
-    # lets just hang back and wait for the queues to empty
-    pathQueue.join()
-    resultsQueue.join()
+        # lets just hang back and wait for the queues to empty
+        pathQueue.join()
+        resultsQueue.join()
+    except KeyboardInterrupt:
+        terminateThreads = True
+        raise
