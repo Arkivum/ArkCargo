@@ -11,7 +11,7 @@ from filecmp import dircmp
 
 # To stop the queue from consuming all the RAM available
 MaxQueue = 1000
-
+terminateThreads = False
 
 def usage():
     print "Usage: md5cargo.py [OPTIONS]"
@@ -58,62 +58,94 @@ def md5sum(filename, blocksize=65536):
 def outputResult(i, q):
     while True:
         file, message = q.get()
-        if (file == "cargo"):
-            eolchar = opt_cargoEOL
-        else:
-	    eolchar = opt_snapshotEOL
-
         try:
             with open(filebase+file, "a") as outputFile:
-                outputFile.write(message+eolchar)
+                outputFile.write(message)
         except:
             sys.stderr.write("Cannot write to %s\n"%file)
-            sys.stderr.write("%s: %s\n"%file%message)
+            sys.stderr.write("%s: %s\n"%(file, message))
+            exit(-1)
         q.task_done()
 
 
-# pathWorker used by threads to process the new snapshot file tree
+# pathWorker used by threads to process an incremental snapshot of the file tree
 #
-def processPath(i, q):
+def processIncr(i, q, r):
     while True:
-        path = q.get()
-        formatOutput(md5sum(path, md5blocklen),  path)
+        relPath = q.get()
+        oldPath = os.path.abspath(opt_previousSnapshot+"/"+relPath)
+        absPath = os.path.abspath(opt_currentSnapshot+"/"+relPath)
+
+        # What have we picked up from the queue
+        if os.path.isdir(absPath):
+            for childPath in os.listdir(absPath):
+                q.put(relPath+"/"+childPath)
+            r.put(("directory", "%s%s"%(absPath, opt_snapshotEOL)))
+
+        elif (not opt_followSymlink) and os.path.islink(absPath):
+            r.put(("symlink", "%s %s%s"%(absPath, os.path.realpath(absPath), opt_snapshotEOL)))
+
+        elif os.path.isfile(absPath):
+            r.put(("added", "%s%s"%(absPath, opt_snapshotEOL)))
+            if (opt_sourceType == "SNAPSHOT"):
+                absPath = absPath.replace("\r","")
+                absPath = absPath.replace("\n","")
+
+                hash = md5sum(absPath)
+                hash = hash.replace(" ","")
+
+                r.put(("cargo", "%s  %s%s"%(hash, absPath, opt_cargoEOL)))
+
+        else:
+            r.put(("error", "invalid path: %s%s"%(absPath, opt_snapshotEOL)))
         q.task_done()
+
+
+# pathWorker used by threads to process a Full snapshot of the file tree
+#
+def processFull(i, q, r):
+    while True:
+        relPath = q.get()
+        absPath = os.path.abspath(opt_currentSnapshot+"/"+relPath)
+
+        # What have we picked up from the queue
+        if os.path.isdir(absPath):
+            for childPath in os.listdir(absPath):
+		q.put(relPath+"/"+childPath)
+            r.put(("directory", "%s%s"%(absPath, opt_snapshotEOL)))
+
+        elif (not opt_followSymlink) and os.path.islink(absPath):
+            r.put(("symlink", "%s %s%s"%(absPath, os.path.realpath(absPath), opt_snapshotEOL)))
+
+        elif os.path.isfile(absPath):
+            if not (opt_followSymlink and os.path.islink(absPath)):
+                r.put(("added", "%s%s"%(absPath, opt_snapshotEOL)))
+                if (opt_sourceType == "SNAPSHOT"):
+                    absPath = absPath.replace("\r","")
+                    absPath = absPath.replace("\n","")
+
+                    hash = md5sum(absPath)
+                    hash = hash.replace(" ","")
+
+                    r.put(("cargo", "%s  %s%s"%(hash, absPath, opt_cargoEOL)))
+
+        else:
+            r.put(("error", "invalid path: %s%s"%(absPath, opt_snapshotEOL)))
+        q.task_done()
+
 
 # for files that can't be processed by dircmp we have to expend some extra energy and use
 # MD5 checksums
 #
-def compareFunnyFile(fileA, fileB):
-    if not os.path.isfile(fileA):
-        sys.stderr.write("%s is not a file!\n"%fileA)
-        sys.exit(-1)
-    elif not os.path.isfile(fileA):
-        sys.stderr.write("%s is not a file!\n"%fileA)
-        sys.exit(-1)
-    else:
+def compareFunnyFile(fileA, fileB, r):
+    try:
         hashA = md5sum(fileA)
         hashB = md5sum(fileB)
+    except IOError as e:
+        message = "%s %s or %s%s"%(e, fileA, fileB, opt_snapshotEOL)
+        r.put(("error", message))
+        sys.stderr.write(message)
     return hashA == hashB;
-
-
-def fullSnapshot():
-    # Lets hoover up everything
-    sys.stdout.write("Should really implement this!")
-    sys.exit(1)
-
-
-
-def incrSnapshot():
-    if (opt_sourceLive):
-	opt_source = opt_sourceLive
-    else:
-	opt_source = opt_sourceSnapshot
-
-    deltaDir = dircmp(opt_previousSnapshot, opt_source)
-    for dir in deltaDir.common_dirs:
-	output(dir, "same")
-
-    return;
 
 
 if __name__ == '__main__':
@@ -125,10 +157,10 @@ if __name__ == '__main__':
     opt_filebase ="./"
     opt_snapshotTimestamp = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
     opt_previousSnapshot = ""
-    opt_sourceSnapshot = ""
+    opt_currentSnapshot = ""
     opt_outputDirectory = ""
-    opt_sourceLive = ""
-    opt_allNew = True
+    opt_sourceType = ""
+    opt_followSymlink = False
 
     args = sys.argv[1:]
     it = iter(args)
@@ -149,49 +181,51 @@ if __name__ == '__main__':
             if not os.path.isdir(opt_outputDirectory):
                 sys.stderr.write("Can not find output directory %s\n"%opt_outputDirectory)
                 sys.exit(-1)
-            else:
-                opt_allNew = False
             continue
         elif i == '-p' or i =='-P':
             opt_previousSnapshot = next(it)
             if not os.path.isdir(opt_previousSnapshot):
                 sys.stderr.write("Can not find open previous snapshot directory %s\n"%opt_previousSnapshot)
                 sys.exit(-1)
-            else:
-                opt_allNew = False
             continue
         elif i == '-s' or i =='-S':
-            opt_sourceSnapshot = next(it)
-	    if opt_sourceLive:
+            opt_currentSnapshot = next(it)
+	    if opt_sourceType == "Live":
                 sys.stderr.write("You cann't specify both a snapshot and a live sources!")
 		usage()
                 sys.exit(-1)
-            elif not os.path.isdir(opt_sourceSnapshot):
-                sys.stderr.write("Cannot find open snapshot source directory %s\n"%opt_sourceSnapshot)
+            elif not os.path.isdir(opt_currentSnapshot):
+                sys.stderr.write("Cannot find open snapshot source directory %s\n"%opt_currentSnapshot)
                 sys.exit(-1)
+            else:
+                opt_sourceType = "SNAPSHOT"
             continue
         elif i == '-l' or i =='-L':
-            opt_sourceLive = next(it)
-            if opt_sourceSnapshot:
+            opt_currentSnapshot = next(it)
+            if opt_sourceType == "SNAPSHOT":
                 sys.stderr.write("You can specify both a snapshot and a live sources!")
                 sys.exit(-1)
-            elif not os.path.isdir(opt_sourceLive):
-                sys.stderr.write("Cannot find open live source directory %s\n"%opt_sourceLive)
+            elif not os.path.isdir(opt_currentSnapshot):
+                sys.stderr.write("Cannot find open live source directory %s\n"%opt_currentSnapshot)
                 sys.exit(-1)
+            else:
+                opt_sourceType = "LIVE"
+            continue
+        elif i == '-f' or i =='-f':
+            opt_followSymlink = True
             continue
         elif i.startswith('-j'):
             opt_threads = int(i[2:]) -1
             # we need to save 1 thread for processing the results queue
             continue
 
-    if (opt_sourceSnapshot and opt_sourceLive):
-        sys.stderr.write("Nothing to do?\n")
-        usage()
-        sys.exit(0)
-
     # We'll need somewhere to output this lot
     filebase = opt_outputDirectory+opt_snapshotName+"/"+opt_snapshotTimestamp+"/"
-    os.makedirs(filebase)
+    try:
+        os.makedirs(filebase)
+    except ValueError:
+        sys.stderr.write("Cannot create output directory (error: %s)\n"%ValueError)
+        sys.exit(-1)
 
     # initialise Queues
     pathQueue = Queue(MaxQueue)
@@ -204,9 +238,15 @@ if __name__ == '__main__':
 
     # setup the pool of path workers
     for i in range(opt_threads):
-        pathWorker = Thread(target=processPath, args=(i, pathQueue))
+        if opt_previousSnapshot:
+            pathWorker = Thread(target=processIncr, args=(i, pathQueue, resultsQueue))
+        else:
+            pathWorker = Thread(target=processFull, args=(i, pathQueue, resultsQueue))
         pathWorker.setDaemon(True)
         pathWorker.start()
+
+    pathQueue.put(".")
+
 
     # lets just hang back and wait for the queues to empty
     pathQueue.join()
