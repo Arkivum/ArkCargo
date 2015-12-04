@@ -11,7 +11,6 @@ from filecmp import dircmp
 
 # To stop the queue from consuming all the RAM available
 MaxQueue = 1000
-terminateThreads = False
 
 def usage():
     print "Usage: md5cargo.py [OPTIONS]"
@@ -228,6 +227,9 @@ if __name__ == '__main__':
         sys.stderr.write("Cannot create output directory (error: %s)\n"%ValueError)
         sys.exit(-1)
 
+
+    terminateThreads = False
+
     # initialise Queues
     pathQueue = Queue(MaxQueue)
     resultsQueue = Queue(opt_threads*MaxQueue)
@@ -246,12 +248,18 @@ if __name__ == '__main__':
         pathWorker.setDaemon(True)
         pathWorker.start()
 
-    try:
         pathQueue.put(".")
 
+    try:
+
         # lets just hang back and wait for the queues to empty
-        pathQueue.join()
-        resultsQueue.join()
+        while not terminateThreads:
+             time.sleep(.1)
+             if pathQueue.empty():
+                 pathQueue.join()
+                 resultsQueue.join()
+                 exit(1)
     except KeyboardInterrupt:
+        # Time to tell all the threads to bail out
         terminateThreads = True
         raise
