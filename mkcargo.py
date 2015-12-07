@@ -11,19 +11,29 @@ import filecmp
 
 # To stop the queue from consuming all the RAM available
 MaxQueue = 1000
+validModes = ["SNAPSHOT", "LIVE", "STATS", "REWORK"]
+cargoModes = ["SNAPSHOT", "REWORK"]
 
 def usage():
     print "Usage: md5cargo.py [OPTIONS]"
     print "-n <dataset name>"
     print "          - a meaningful name for the dataset, this should be consistent for all snapshots"
     print "            of a file structure."
+    print "-mode <mode>"
+    print "          - a number of modes are possible:"
+    print "            SNAPSHOT - use with either a single snapshot or to generate an incremental between"
+    print "                       two snapshots. By default this gnerates cargo files (including checksums)."
+    print "            LIVE     - use with either a single snapshot or to generate an incremental between"
+    print "                       a snapshot and a live filesystem. This will not generate a cargo file"
+    print "                       since the checksums are highly likely to change."
+    print "            STATS    - gathers snapshots doesn't generate cargo files."
+    print "            REWORK   - generate a cargo file based on a list of paths in files."
     print "-t <yyyymmddThhmmss>"
     print "          - if not supplied the timestamp will be generated at the start of a run. Where a"
     print "            filesystem snapshot is being processed then it is more meaningful to use the "
     print "            timestamp from the newer snapshot."
     print "-s        - follow symlinks and ingest their target, defaults to outputing symlinks and their"
     print "            targets in the symlink file."
-    print "-l <dir>  - live mode, to be used when the source filesystem does not support snapshots."
     print "-n <dir>  - snapshot mode, used when the new source filesystem is a snapshot."
     print "-p <dir>  - previous snapshot, if omitted then a full ingest based on the file tree passed with"
     print "            either the -l or -s options."
@@ -45,6 +55,7 @@ def usage():
     return;
 
 
+
 # Calculate the MD5 sum of the file
 #
 def md5sum(filename, blocksize=65536):
@@ -60,9 +71,9 @@ def md5sum(filename, blocksize=65536):
 #
 def outputResult(i, q):
     while True:
-        file, message = q.get()
+        file, bytes, message = q.get()
         try:
-            with open(filebase+file, "a") as outputFile:
+            with open(os.path.join(filebase,file), "a") as outputFile:
                 outputFile.write(message)
         except:
             sys.stderr.write("Cannot write to %s\n"%file)
@@ -76,7 +87,7 @@ def outputResult(i, q):
 def processIncr(i, q, r):
     while not terminateThreads:
         relPath = q.get()
-        cargo = False
+        cargo = (opt_mode in cargoModes)
 
         if relPath == os.path.abspath(relPath):
             # This is an explict entry from the rework file
@@ -84,45 +95,45 @@ def processIncr(i, q, r):
             oldPath = ""
         else:
             # This is an entry for the current snapshot
-            absPath = os.path.abspath(opt_currentSnapshot+"/"+relPath)
-            oldPath = os.path.abspath(opt_previousSnapshot+"/"+relPath)
+            absPath = os.path.abspath(os.path.join(opt_currentSnapshot, relPath))
+            oldPath = os.path.abspath(os.path.join(opt_previousSnapshot, relPath))
 
 
         if opt_debug:
-            r.put(("log", "Thread %s - %s%s"%(current_thread().getName(), relPath, opt_snapshotEOL)))
+            r.put(("log", "", "Thread %s - %s%s"%(current_thread().getName(), relPath, opt_snapshotEOL)))
 
         # What have we picked up from the queue
         if os.path.isdir(absPath):
-            r.put(("directory", "%s%s"%(relPath, opt_snapshotEOL)))
+            r.put(("directory", "", "%s%s"%(relPath, opt_snapshotEOL)))
 
             if os.path.isdir(oldPath):
                 for removed in set(os.listdir(oldPath)).difference(os.listdir(absPath)):
-                    r.put(("removed", "%s%s"%(relPath+"/"+removed, opt_snapshotEOL)))
+                    r.put(("removed", "", "%s%s"%(os.path.join(relPath, removed), opt_snapshotEOL)))
                 for common in set(os.listdir(absPath)).intersection(os.listdir(oldPath)):
-                    q.put(relPath+"/"+common)
+                    q.put(os.path.join(relPath, common))
                 for added in set(os.listdir(absPath)).difference(os.listdir(oldPath)):
-                    q.put(relPath+"/"+added)
+                    q.put(os.path.join(relPath, added))
             else:
                 for childPath in os.listdir(absPath):
-                    q.put(relPath+"/"+childPath)
+                    q.put(os.path.join(relPath, childPath))
 
         elif (not opt_followSymlink) and os.path.islink(absPath):
             if os.path.realpath(oldPath) == os.path.realpath(absPath):
-                r.put(("unchanged", "%s%s"%(relPath, opt_snapshotEOL)))
+                r.put(("unchanged", os.path.getsize(absPath), "%s%s"%(relPath, opt_snapshotEOL)))
             else:
-                r.put(("symlink", "%s %s%s"%(relPath, os.path.realpath(absPath), opt_snapshotEOL)))
+                r.put(("symlink", "", "%s %s%s"%(relPath, os.path.realpath(absPath), opt_snapshotEOL)))
 
         elif os.path.isfile(absPath):
             if os.path.isfile(oldPath):
                 if filecmp.cmp(oldPath, absPath):
-                    r.put(("unchanged", "%s%s"%(relPath, opt_snapshotEOL)))
+                    r.put(("unchanged", os.path.getsize(absPath), "%s%s"%(relPath, opt_snapshotEOL)))
                 else:
-                    r.put(("modified", "%s%s"%(relPath, opt_snapshotEOL)))
-                    if opt_sourceType == "SNAPSHOT":
+                    r.put(("modified", os.path.getsize(absPath), "%s%s"%(relPath, opt_snapshotEOL)))
+                    if opt_mode == "SNAPSHOT":
                         cargo = True
             else:    
-                r.put(("added", "%s%s"%(relPath, opt_snapshotEOL)))
-                if opt_sourceType == "SNAPSHOT":
+                r.put(("added", os.path.getsize(absPath), "%s%s"%(relPath, opt_snapshotEOL)))
+                if opt_mode == "SNAPSHOT":
                     cargo = True
             
             if cargo:
@@ -132,11 +143,10 @@ def processIncr(i, q, r):
                 hash = md5sum(absPath)
                 hash = hash.replace(" ","")
 
-                r.put(("cargo", "%s  %s%s"%(hash, absPath, opt_cargoEOL)))
+                r.put(("cargo", "", "%s  %s%s"%(hash, absPath, opt_cargoEOL)))
 
         else:
-            r.put(("error", "invalid path: %s%s"%(relPath, opt_snapshotEOL)))
-
+            r.put(("error", "", "invalid path: %s%s"%(relPath, opt_snapshotEOL)))
         q.task_done()
 
 
@@ -146,39 +156,41 @@ def processFull(i, q, r):
     while not terminateThreads:
         relPath = q.get()
 
+        cargo = (opt_mode in cargoModes)
+
         if relPath == os.path.abspath(relPath):
             # This is an explict entry from the rework file
             absPath = relPath
         else:
             # This is an entry for the current snapshot
-            absPath = os.path.abspath(opt_currentSnapshot+"/"+relPath)
+            absPath = os.path.abspath(os.path.join(opt_currentSnapshot, relPath))
 
         if opt_debug:
-            r.put(("log", "Thread %s - %s%s"%(current_thread().getName(), relPath, opt_snapshotEOL)))
+            r.put(("log", "", "Thread %s - %s%s"%(current_thread().getName(), relPath, opt_snapshotEOL)))
 
         # What have we picked up from the queue
         if os.path.isdir(absPath):
             for childPath in os.listdir(absPath):
-		q.put(relPath+"/"+childPath)
-            r.put(("directory", "%s%s"%(relPath, opt_snapshotEOL)))
+		q.put(os.path.join(relPath, childPath))
+            r.put(("directory", "", "%s%s"%(relPath, opt_snapshotEOL)))
 
         elif (not opt_followSymlink) and os.path.islink(absPath):
-            r.put(("symlink", "%s %s%s"%(relPath, os.path.realpath(absPath), opt_snapshotEOL)))
+            r.put(("symlink", "", "%s %s%s"%(relPath, os.path.realpath(absPath), opt_snapshotEOL)))
 
         elif os.path.isfile(absPath):
             if not (opt_followSymlink and os.path.islink(absPath)):
-                r.put(("added", "%s%s"%(relPath, opt_snapshotEOL)))
-                if (opt_sourceType == "SNAPSHOT"):
+                r.put(("added", os.path.getsize(absPath), "%s%s"%(relPath, opt_snapshotEOL)))
+                if cargo:
                     absPath = absPath.replace("\r","")
                     absPath = absPath.replace("\n","")
 
                     hash = md5sum(absPath)
                     hash = hash.replace(" ","")
 
-                    r.put(("cargo", "%s  %s%s"%(hash, absPath, opt_cargoEOL)))
+                    r.put(("cargo", "", "%s  %s%s"%(hash, absPath, opt_cargoEOL)))
 
         else:
-            r.put(("error", "invalid path: %s%s"%(relPath, opt_snapshotEOL)))
+            r.put(("error", "", "invalid path: %s%s"%(relPath, opt_snapshotEOL)))
         q.task_done()
 
 
@@ -191,22 +203,22 @@ def compareFunnyFile(fileA, fileB, r):
         hashB = md5sum(fileB)
     except IOError as e:
         message = "%s %s or %s%s"%(e, fileA, fileB, opt_snapshotEOL)
-        r.put(("error", message))
+        r.put(("error", "", message))
         sys.stderr.write(message)
     return hashA == hashB;
 
 def logConfig(r):
-    r.put(("config", "pathWorkers %s%s"%(opt_threads, opt_snapshotEOL)))
-    r.put(("config", "reportWorkers 1%s"%(opt_snapshotEOL)))
-    r.put(("config", "snapshotName %s%s"%(opt_snapshotName, opt_snapshotEOL)))
-    r.put(("config", "timestamp %s%s"%(opt_snapshotTimestamp, opt_snapshotEOL)))
-    r.put(("config", "previousSnapshot %s%s"%(opt_previousSnapshot, opt_snapshotEOL)))
-    r.put(("config", "currentSnapshot %s%s"%(opt_currentSnapshot, opt_snapshotEOL)))
-    r.put(("config", "previousAbsPath %s%s"%(os.path.abspath(opt_previousSnapshot), opt_snapshotEOL)))
-    r.put(("config", "currentAbsPath %s%s"%(os.path.abspath(opt_currentSnapshot), opt_snapshotEOL)))
-    r.put(("config", "sourceType %s%s"%(opt_sourceType, opt_snapshotEOL)))
-    r.put(("config", "followSymlinks %s%s"%(opt_followSymlink, opt_snapshotEOL)))
-    r.put(("config", "explicitFiles %s%s"%(opt_explicitPaths, opt_snapshotEOL)))
+    r.put(("config", "", "pathWorkers %s%s"%(opt_threads, opt_snapshotEOL)))
+    r.put(("config", "", "reportWorkers 1%s"%(opt_snapshotEOL)))
+    r.put(("config", "", "snapshotName %s%s"%(opt_snapshotName, opt_snapshotEOL)))
+    r.put(("config", "", "timestamp %s%s"%(opt_snapshotTimestamp, opt_snapshotEOL)))
+    r.put(("config", "", "previousSnapshot %s%s"%(opt_previousSnapshot, opt_snapshotEOL)))
+    r.put(("config", "", "currentSnapshot %s%s"%(opt_currentSnapshot, opt_snapshotEOL)))
+    r.put(("config", "", "previousAbsPath %s%s"%(os.path.abspath(opt_previousSnapshot), opt_snapshotEOL)))
+    r.put(("config", "", "currentAbsPath %s%s"%(os.path.abspath(opt_currentSnapshot), opt_snapshotEOL)))
+    r.put(("config", "", "sourceType %s%s"%(opt_mode, opt_snapshotEOL)))
+    r.put(("config", "", "followSymlinks %s%s"%(opt_followSymlink, opt_snapshotEOL)))
+    r.put(("config", "", "explicitFiles %s%s"%(opt_explicitPaths, opt_snapshotEOL)))
     return;
 
 if __name__ == '__main__':
@@ -219,7 +231,7 @@ if __name__ == '__main__':
     opt_previousSnapshot = ""
     opt_currentSnapshot = ""
     opt_outputDirectory = ""
-    opt_sourceType = ""
+    opt_mode = ""
     opt_explicitPaths =""
     opt_followSymlink = False
     opt_debug = False
@@ -227,8 +239,14 @@ if __name__ == '__main__':
     args = sys.argv[1:]
     it = iter(args)
     for i in it:
-        if i.upper() =='-DEBUG':
-            opt_debug = True
+        if i.upper() =='-MODE':
+            opt_mode = next(it).upper()
+            #This needs sorting out
+            if not opt_mode in validModes:
+                sys.stdout.write("Unrecognised mode: %s\n"%opt_mode)
+                sys.exit(-1)
+	elif i.upper() == '-DEBUG':
+                opt_debug = True
         elif i.upper() == '-NAME':
             opt_snapshotName = next(it)
             continue 
@@ -259,26 +277,9 @@ if __name__ == '__main__':
                 sys.exit(-1)
         elif i == '-n' or i =='-N':
             opt_currentSnapshot = next(it)
-	    if opt_sourceType == "Live":
-                sys.stderr.write("You cann't specify both a snapshot and a live sources!")
-		usage()
+            if not os.path.isdir(opt_currentSnapshot):
+                sys.stderr.write("Cannot find open snapshot directory %s\n"%opt_currentSnapshot)
                 sys.exit(-1)
-            elif not os.path.isdir(opt_currentSnapshot):
-                sys.stderr.write("Cannot find open snapshot source directory %s\n"%opt_currentSnapshot)
-                sys.exit(-1)
-            else:
-                opt_sourceType = "SNAPSHOT"
-            continue
-        elif i == '-l' or i =='-L':
-            opt_currentSnapshot = next(it)
-            if opt_sourceType == "SNAPSHOT":
-                sys.stderr.write("You can specify both a snapshot and a live sources!")
-                sys.exit(-1)
-            elif not os.path.isdir(opt_currentSnapshot):
-                sys.stderr.write("Cannot find open live source directory %s\n"%opt_currentSnapshot)
-                sys.exit(-1)
-            else:
-                opt_sourceType = "LIVE"
             continue
         elif i == '-s' or i =='-S':
             opt_followSymlink = True
@@ -289,7 +290,7 @@ if __name__ == '__main__':
             continue
 
     # We'll need somewhere to output this lot
-    filebase = opt_outputDirectory+opt_snapshotName+"/"+opt_snapshotTimestamp+"/"
+    filebase = os.path.join(opt_outputDirectory, opt_snapshotName, opt_snapshotTimestamp)
     try:
         os.makedirs(filebase)
     except ValueError:
@@ -301,7 +302,6 @@ if __name__ == '__main__':
 
     # initialise Queues
     pathQueue = Queue(MaxQueue)
-    pathQueue.put(".")
     resultsQueue = Queue(opt_threads*MaxQueue)
 
     logConfig(resultsQueue)
@@ -320,7 +320,7 @@ if __name__ == '__main__':
         pathWorker.setDaemon(True)
         pathWorker.start()
 
-    if opt_explicitPaths:
+    if opt_mode == "REWORK":
         try:
             for line in open(opt_explicitPaths):
                 explicitFile = line.rstrip('\n').rstrip('\r')
@@ -331,6 +331,9 @@ if __name__ == '__main__':
         except ValueError:
             sys.stderr.write("Cannot read list of files to ingest from %s (error: %s)\n"%(opt_explicitPaths, ValueError))
             sys.exit(-1)
+    else:
+        pathQueue.put(".")
+     
 
     try:
 
