@@ -206,6 +206,7 @@ def logConfig(r):
     r.put(("config", "currentAbsPath %s%s"%(os.path.abspath(opt_currentSnapshot), opt_snapshotEOL)))
     r.put(("config", "sourceType %s%s"%(opt_sourceType, opt_snapshotEOL)))
     r.put(("config", "followSymlinks %s%s"%(opt_followSymlink, opt_snapshotEOL)))
+    r.put(("config", "explicitFiles %s%s"%(opt_explicitPaths, opt_snapshotEOL)))
     return;
 
 if __name__ == '__main__':
@@ -219,7 +220,7 @@ if __name__ == '__main__':
     opt_currentSnapshot = ""
     opt_outputDirectory = ""
     opt_sourceType = ""
-    opt_reworkFile =""
+    opt_explicitPaths =""
     opt_followSymlink = False
     opt_debug = False
     
@@ -252,9 +253,9 @@ if __name__ == '__main__':
                 sys.exit(-1)
             continue
         elif i == '-f' or i =='-F':
-            opt_reworkFile = next(it)
-            if not os.path.isfile(opt_reworkFile):
-                sys.stderr.write("Can not find open list of files to ingest %s\n"%opt_reworkFile)
+            opt_explicitPaths = next(it)
+            if not os.path.isfile(opt_explicitPaths):
+                sys.stderr.write("Can not find open list of files to ingest %s\n"%opt_explicitPaths)
                 sys.exit(-1)
         elif i == '-n' or i =='-N':
             opt_currentSnapshot = next(it)
@@ -319,16 +320,16 @@ if __name__ == '__main__':
         pathWorker.setDaemon(True)
         pathWorker.start()
 
-    if opt_reworkFile:
+    if opt_explicitPaths:
         try:
-            for line in open(opt_reworkFile):
+            for line in open(opt_explicitPaths):
                 explicitFile = line.rstrip('\n').rstrip('\r')
                 if explicitFile == os.path.abspath(explicitFile):
                     pathQueue.put(explicitFile)
                 else:
                     resultsQueue.put(("error", "must be absolute path: %s%s"%(explicitFile, opt_snapshotEOL)))
         except ValueError:
-            sys.stderr.write("Cannot read list of files to ingest from %s (error: %s)\n"%(opt_reworkFile, ValueError))
+            sys.stderr.write("Cannot read list of files to ingest from %s (error: %s)\n"%(opt_explicitPaths, ValueError))
             sys.exit(-1)
 
     try:
