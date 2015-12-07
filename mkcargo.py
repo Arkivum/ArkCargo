@@ -21,12 +21,14 @@ def usage():
     print "          - if not supplied the timestamp will be generated at the start of a run. Where a"
     print "            filesystem snapshot is being processed then it is more meaningful to use the "
     print "            timestamp from the newer snapshot."
-    print "-f        - follow symlinks and ingest their target, defaults to outputing symlinks and their"
+    print "-s        - follow symlinks and ingest their target, defaults to outputing symlinks and their"
     print "            targets in the symlink file."
     print "-l <dir>  - live mode, to be used when the source filesystem does not support snapshots."
-    print "-s <dir>  - snapshot mode, used when the new source filesystem is a snapshot."
+    print "-n <dir>  - snapshot mode, used when the new source filesystem is a snapshot."
     print "-p <dir>  - previous snapshot, if omitted then a full ingest based on the file tree passed with"
     print "            either the -l or -s options."
+    print "-f <file> - a list of files to explicitly attempt ingest for, may be used to re-try failed files"
+    print "            from a previous ingest snapshot." 
     print "-o <dir>  - output directory, where to save the output files."
     print "            <name>/<iso timestamp>/log       - messages and errors during the run"
     print "            <name>/<iso timestamp>/removed   - files delete since previous snapshot"
@@ -74,9 +76,17 @@ def outputResult(i, q):
 def processIncr(i, q, r):
     while not terminateThreads:
         relPath = q.get()
-        oldPath = os.path.abspath(opt_previousSnapshot+"/"+relPath)
-        absPath = os.path.abspath(opt_currentSnapshot+"/"+relPath)
         cargo = False
+
+        if relPath == os.path.abspath(relPath):
+            # This is an explict entry from the rework file
+            absPath = relPath
+            oldPath = ""
+        else:
+            # This is an entry for the current snapshot
+            absPath = os.path.abspath(opt_currentSnapshot+"/"+relPath)
+            oldPath = os.path.abspath(opt_previousSnapshot+"/"+relPath)
+
 
         if opt_debug:
             r.put(("log", "Thread %s - %s%s"%(current_thread().getName(), relPath, opt_snapshotEOL)))
@@ -135,7 +145,13 @@ def processIncr(i, q, r):
 def processFull(i, q, r):
     while not terminateThreads:
         relPath = q.get()
-        absPath = os.path.abspath(opt_currentSnapshot+"/"+relPath)
+
+        if relPath == os.path.abspath(relPath):
+            # This is an explict entry from the rework file
+            absPath = relPath
+        else:
+            # This is an entry for the current snapshot
+            absPath = os.path.abspath(opt_currentSnapshot+"/"+relPath)
 
         if opt_debug:
             r.put(("log", "Thread %s - %s%s"%(current_thread().getName(), relPath, opt_snapshotEOL)))
@@ -203,6 +219,7 @@ if __name__ == '__main__':
     opt_currentSnapshot = ""
     opt_outputDirectory = ""
     opt_sourceType = ""
+    opt_reworkFile =""
     opt_followSymlink = False
     opt_debug = False
     
@@ -211,7 +228,7 @@ if __name__ == '__main__':
     for i in it:
         if i.upper() =='-DEBUG':
             opt_debug = True
-        elif i == '-n' or i =='-N':
+        elif i.upper() == '-NAME':
             opt_snapshotName = next(it)
             continue 
         elif i == '-t':
@@ -234,7 +251,12 @@ if __name__ == '__main__':
                 sys.stderr.write("Can not find open previous snapshot directory %s\n"%opt_previousSnapshot)
                 sys.exit(-1)
             continue
-        elif i == '-s' or i =='-S':
+        elif i == '-f' or i =='-F':
+            opt_reworkFile = next(it)
+            if not os.path.isfile(opt_reworkFile):
+                sys.stderr.write("Can not find open list of files to ingest %s\n"%opt_reworkFile)
+                sys.exit(-1)
+        elif i == '-n' or i =='-N':
             opt_currentSnapshot = next(it)
 	    if opt_sourceType == "Live":
                 sys.stderr.write("You cann't specify both a snapshot and a live sources!")
@@ -257,7 +279,7 @@ if __name__ == '__main__':
             else:
                 opt_sourceType = "LIVE"
             continue
-        elif i == '-f' or i =='-f':
+        elif i == '-s' or i =='-S':
             opt_followSymlink = True
             continue
         elif i.startswith('-j'):
@@ -297,6 +319,17 @@ if __name__ == '__main__':
         pathWorker.setDaemon(True)
         pathWorker.start()
 
+    if opt_reworkFile:
+        try:
+            for line in open(opt_reworkFile):
+                explicitFile = line.rstrip('\n').rstrip('\r')
+                if explicitFile == os.path.abspath(explicitFile):
+                    pathQueue.put(explicitFile)
+                else:
+                    resultsQueue.put(("error", "must be absolute path: %s%s"%(explicitFile, opt_snapshotEOL)))
+        except ValueError:
+            sys.stderr.write("Cannot read list of files to ingest from %s (error: %s)\n"%(opt_reworkFile, ValueError))
+            sys.exit(-1)
 
     try:
 
