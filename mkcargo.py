@@ -60,9 +60,14 @@ def usage():
 #
 def md5sum(filename, blocksize=65536):
     hash = hashlib.md5()
-    with open(filename, "rb") as f:
-        for block in iter(lambda: f.read(blocksize), ""):
-            hash.update(block)
+    try:
+        with open(filename, "rb") as f:
+            for block in iter(lambda: f.read(blocksize), ""):
+                hash.update(block)
+    except IOError as e:
+        r.put(("error", "", "%s %s%s"%(e, filename, opt_snapshotEOL)))
+        sys.stderr.write(message)
+
     return hash.hexdigest();
 
 
