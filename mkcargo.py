@@ -7,12 +7,16 @@ from Queue import Queue
 from threading import Thread,current_thread
 import time, datetime, errno
 import filecmp
-
+import csv
 
 # To stop the queue from consuming all the RAM available
 MaxQueue = 1000
 validModes = ["SNAPSHOT", "LIVE", "STATS", "REWORK"]
 cargoModes = ["SNAPSHOT", "REWORK"]
+validFiles = ["log", "failed", "added", "modified", "unchanged", "symlink", "directory", "config", "cargo", "removed"]
+includeStats = {'Full' : ['added', 'modified', 'unchanged'], 'Incr' : ['added', 'modified']}
+statsCounts = {}
+statsBytes = {}
 
 def usage():
     print "Usage: md5cargo.py [OPTIONS]"
@@ -54,6 +58,43 @@ def usage():
     print "-jnn      - Controls multi-threading. By default the program will create one thread per CPU core, one thread is used for writing to the output files, the rest for scanning the file system and calculating MD5 hashes. Multi-threading causes output filenames to be in non-deterministic order, as files that take longer to hash will be delayed while they are hashed."
     return;
 
+def loadBoundaries(file):
+    boundaries = []
+    global statsFull
+    global statsIncr
+    counters = {}
+
+    try:
+        with open(file) as csvfile:
+            statsBoundaries = csv.DictReader(csvfile)
+            for row in statsBoundaries:
+                boundaries.append((row['Name'], row['Lower'], row['Upper']))
+                counters[row['Name']] = 0
+
+    except ValueError:
+        sys.stderr.write("Can't load stats boundaries from file %s (error: %s)\n"%(file, ValueError))
+        sys.exit(-1)
+    for category in includeStats['Full']:
+        statsCounts[category] = counters.copy()
+        statsBytes[category] = counters.copy() 
+    return boundaries
+
+
+def updateStats(file, bytes):
+    global statsCounts 
+    global statsBytes
+
+    for boundary in statsBoundaries:
+        name, lower, upper = boundary
+        if (bytes >= int(lower) and bytes < int(upper)) or (bytes >= int(lower) and upper == ""):
+            statsCounts[file][name] += 1
+            statsBytes[file][name] += bytes
+
+
+def exportStats():
+    # exports stats based on categories listed in includeStats & includeStats 
+    print statsCounts
+    print statsBytes
 
 
 # Calculate the MD5 sum of the file
@@ -65,7 +106,7 @@ def md5sum(filename, blocksize=65536):
             for block in iter(lambda: f.read(blocksize), ""):
                 hash.update(block)
     except IOError as e:
-        r.put(("error", "", "%s %s%s"%(e, filename, opt_snapshotEOL)))
+        r.put(("failed", "", "%s %s%s"%(e, filename, opt_snapshotEOL)))
         sys.stderr.write(message)
 
     return hash.hexdigest();
@@ -77,6 +118,15 @@ def md5sum(filename, blocksize=65536):
 def outputResult(i, q):
     while True:
         file, bytes, message = q.get()
+
+        # update stats for this file
+        if file in list( set(includeStats['Full']) | set(includeStats['Incr']) ):
+            updateStats(file, bytes)
+
+        if file not in validFiles:
+            sys.stderr.write("invalid output file'%s'"%file)
+            sys.exit(-1)
+        # write out the message to the end of the file
         try:
             with open(os.path.join(filebase,file), "a") as outputFile:
                 outputFile.write(message)
@@ -151,7 +201,7 @@ def processIncr(i, q, r):
                 r.put(("cargo", "", "%s  %s%s"%(hash, absPath, opt_cargoEOL)))
 
         else:
-            r.put(("error", "", "invalid path: %s%s"%(relPath, opt_snapshotEOL)))
+            r.put(("failed", "", "invalid path: %s%s"%(relPath, opt_snapshotEOL)))
         q.task_done()
 
 
@@ -195,7 +245,7 @@ def processFull(i, q, r):
                     r.put(("cargo", "", "%s  %s%s"%(hash, absPath, opt_cargoEOL)))
 
         else:
-            r.put(("error", "", "invalid path: %s%s"%(relPath, opt_snapshotEOL)))
+            r.put(("failed", "", "invalid path: %s%s"%(relPath, opt_snapshotEOL)))
         q.task_done()
 
 
@@ -208,7 +258,7 @@ def compareFunnyFile(fileA, fileB, r):
         hashB = md5sum(fileB)
     except IOError as e:
         message = "%s %s or %s%s"%(e, fileA, fileB, opt_snapshotEOL)
-        r.put(("error", "", message))
+        r.put(("failed", "", message))
         sys.stderr.write(message)
     return hashA == hashB;
 
@@ -240,7 +290,9 @@ if __name__ == '__main__':
     opt_explicitPaths =""
     opt_followSymlink = False
     opt_debug = False
-    
+    opt_boundaryFile = os.path.join(os.path.dirname( os.path.realpath( __file__ )), 'boundaries.csv') 
+
+   
     args = sys.argv[1:]
     it = iter(args)
     for i in it:
@@ -294,6 +346,9 @@ if __name__ == '__main__':
             # we need to save 1 thread for processing the results queue
             continue
 
+    # load stats boundaries
+    statsBoundaries = loadBoundaries( opt_boundaryFile )
+
     # We'll need somewhere to output this lot
     filebase = os.path.join(opt_outputDirectory, opt_snapshotName, opt_snapshotTimestamp)
     try:
@@ -332,7 +387,7 @@ if __name__ == '__main__':
                 if explicitFile == os.path.abspath(explicitFile):
                     pathQueue.put(explicitFile)
                 else:
-                    resultsQueue.put(("error", "must be absolute path: %s%s"%(explicitFile, opt_snapshotEOL)))
+                    resultsQueue.put(("failed", "must be absolute path: %s%s"%(explicitFile, opt_snapshotEOL)))
         except ValueError:
             sys.stderr.write("Cannot read list of files to ingest from %s (error: %s)\n"%(opt_explicitPaths, ValueError))
             sys.exit(-1)
@@ -348,6 +403,7 @@ if __name__ == '__main__':
              if pathQueue.empty():
                  pathQueue.join()
                  resultsQueue.join()
+                 exportStats()
                  exit(1)
     except KeyboardInterrupt:
         # Time to tell all the threads to bail out
