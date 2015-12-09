@@ -14,10 +14,9 @@ MaxQueue = 1000
 validModes = ["SNAPSHOT", "LIVE", "STATS", "REWORK"]
 cargoModes = ["SNAPSHOT", "REWORK"]
 validFiles = ["log", "failed", "added", "modified", "unchanged", "symlink", "directory", "config", "cargo", "removed"]
-includeStats = {'Full' : ['added', 'modified', 'unchanged'], 'Incr' : ['added', 'modified']}
-statsCounts = {}
-statsBytes = {}
-statsFields = ['Type']
+includeStats = {'full' : ['added', 'modified', 'unchanged'], 'incr' : ['added', 'modified']}
+stats = {}
+statsFields = {}
 
 def usage():
     print "Usage: md5cargo.py [OPTIONS]"
@@ -28,9 +27,9 @@ def usage():
     print "          - a number of modes are possible:"
     print "            SNAPSHOT - use with either a single snapshot or to generate an incremental between"
     print "                       two snapshots. By default this gnerates cargo files (including checksums)."
-    print "            LIVE     - use with either a single snapshot or to generate an incremental between"
-    print "                       a snapshot and a live filesystem. This will not generate a cargo file"
-    print "                       since the checksums are highly likely to change."
+#    print "            LIVE     - use with either a single snapshot or to generate an incremental between"
+#    print "                       a snapshot and a live filesystem. This will not generate a cargo file"
+#    print "                       since the checksums are highly likely to change."
     print "            STATS    - gathers snapshots doesn't generate cargo files."
     print "            REWORK   - generate a cargo file based on a list of paths in files."
     print "-t <yyyymmddThhmmss>"
@@ -61,44 +60,58 @@ def usage():
 
 def loadBoundaries(file):
     boundaries = []
-    global statsFull
-    global statsIncr
+    global stats
     global statsFields
-    counters = {}
+    fields = {'Category' : ''}
+    countfields = {}
+    bytesfields = {}
 
     try:
         with open(file) as csvfile:
             statsBoundaries = csv.DictReader(csvfile)
             for row in statsBoundaries:
                 boundaries.append((row['Name'], row['Lower'], row['Upper']))
-                statsFields.append(row['Name'])
+                bytesfields['bytes '+row['Name']] = 0
+                countfields['count '+row['Name']] = 0
 
     except ValueError:
         sys.stderr.write("Can't load stats boundaries from file %s (error: %s)\n"%(file, ValueError))
         sys.exit(-1)
-    for category in includeStats['Full']:
-        statsCounts[category] = counters.copy()
-        statsBytes[category] = counters.copy() 
+
+    fields = dict(fields.items() + bytesfields.items() + countfields.items())
+    statsFields = ['Category'] + bytesfields.keys() + countfields.keys()
+
+    for category in includeStats['full']:
+        stats[category] = fields.copy()
+        stats[category]['Category'] = category
     return boundaries
 
 
 def updateStats(file, bytes):
-    global statsCounts 
-    global statsBytes
+    global stats 
 
     for boundary in statsBoundaries:
         name, lower, upper = boundary
         if (bytes >= int(lower) and bytes < int(upper)) or (bytes >= int(lower) and upper == ""):
-            statsCounts[file][name] += 1
-            statsBytes[file][name] += bytes
+            stats[file]['count '+name] += 1
+            stats[file]['bytes '+name] += bytes
 
 
 def exportStats():
     # exports stats based on categories listed in includeStats & includeStats 
-    print statsFields
-    print statsCounts
-    print statsBytes
+    try:
+        for statSet in includeStats:
+            file = os.path.join(filebase,'stats_'+statSet+'.csv')
+            with open(file, "wb") as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=statsFields)
+                writer.writeheader()
+                for category in includeStats[statSet]:
+                    writer.writerow(stats[category])
 
+    except ValueError:
+        sys.stderr.write("Can't export stats to file %s (error: %s)\n"%(filefull, ValueError))
+        print stats
+ 
 
 # Calculate the MD5 sum of the file
 #
@@ -123,7 +136,7 @@ def outputResult(i, q):
         file, bytes, message = q.get()
 
         # update stats for this file
-        if file in list( set(includeStats['Full']) | set(includeStats['Incr']) ):
+        if file in list( set(includeStats['full']) | set(includeStats['incr']) ):
             updateStats(file, bytes)
 
         if file not in validFiles:
