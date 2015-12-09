@@ -20,7 +20,7 @@ statsFields = {}
 
 def usage():
     print "Usage: md5cargo.py [OPTIONS]"
-    print "-n <dataset name>"
+    print "-name <dataset name>"
     print "          - a meaningful name for the dataset, this should be consistent for all snapshots"
     print "            of a file structure."
     print "-mode <mode>"
@@ -168,22 +168,27 @@ def outputResult(i, f, q):
         q.task_done()
 
 
+def cargoEntry(path, queue):
+    if opt_mode in cargoModes: 
+        path = path.replace("\r","")
+        path = path.replace("\n","")
+
+        hash = md5sum(path)
+        hash = hash.replace(" ","")
+
+        queue.put(("cargo", "", "%s  %s%s"%(hash, path, opt_cargoEOL)))
+    return;
+
+
 # pathWorker used by threads to process an incremental snapshot of the file tree
 #
 def processIncr(i, q, r):
     while not terminateThreads:
         relPath = q.get()
-        cargo = (opt_mode in cargoModes)
-        mkcargo = False
 
-        if relPath == os.path.abspath(relPath):
-            # This is an explict entry from the rework file
-            absPath = relPath
-            oldPath = ""
-        else:
-            # This is an entry for the current snapshot
-            absPath = os.path.abspath(os.path.join(opt_currentSnapshot, relPath))
-            oldPath = os.path.abspath(os.path.join(opt_previousSnapshot, relPath))
+        # This is an entry for the current snapshot
+        absPath = os.path.abspath(os.path.join(opt_currentSnapshot, relPath))
+        oldPath = os.path.abspath(os.path.join(opt_previousSnapshot, relPath))
 
 
         if opt_debug:
@@ -195,12 +200,15 @@ def processIncr(i, q, r):
             if len(next(os.walk(absPath))[1]) ==0:
                 r.put(("directory", "", "%s%s"%(relPath, opt_snapshotEOL)))
 
+            dirlistOld = os.listdir(oldPath)
+            dirlistNew = os.listdir(absPath)
+
             if os.path.isdir(oldPath):
-                for removed in set(os.listdir(oldPath)).difference(os.listdir(absPath)):
+                for removed in set(dirlistOld).difference(dirlistNew):
                     r.put(("removed", "", "%s%s"%(os.path.join(relPath, removed), opt_snapshotEOL)))
-                for common in set(os.listdir(absPath)).intersection(os.listdir(oldPath)):
+                for common in set(dirlistNew).intersection(dirlistOld):
                     q.put(os.path.join(relPath, common))
-                for added in set(os.listdir(absPath)).difference(os.listdir(oldPath)):
+                for added in set(dirlistNew).difference(dirlistOld):
                     q.put(os.path.join(relPath, added))
             else:
                 for childPath in os.listdir(absPath):
@@ -216,23 +224,13 @@ def processIncr(i, q, r):
             if os.path.isfile(oldPath):
                 if filecmp.cmp(oldPath, absPath):
                     r.put(("unchanged", os.path.getsize(absPath), "%s%s"%(relPath, opt_snapshotEOL)))
-                    mkcargo = False
                 else:
                     r.put(("modified", os.path.getsize(absPath), "%s%s"%(relPath, opt_snapshotEOL)))
-                    mkcargo = True
+                    cargoEntry(absPath, r)
             else:    
                 r.put(("added", os.path.getsize(absPath), "%s%s"%(relPath, opt_snapshotEOL)))
-                mkcargo = True
+                cargoEntry(absPath, r)
             
-            if cargo and mkcargo:
-                absPath = absPath.replace("\r","")
-                absPath = absPath.replace("\n","")
-
-                hash = md5sum(absPath)
-                hash = hash.replace(" ","")
-
-                r.put(("cargo", "", "%s  %s%s"%(hash, absPath, opt_cargoEOL)))
-
         else:
             r.put(("failed", "", "invalid path: %s%s"%(relPath, opt_snapshotEOL)))
         q.task_done()
@@ -243,8 +241,6 @@ def processIncr(i, q, r):
 def processFull(i, q, r):
     while not terminateThreads:
         relPath = q.get()
-
-        cargo = (opt_mode in cargoModes)
 
         if relPath == os.path.abspath(relPath):
             # This is an explict entry from the rework file
@@ -271,32 +267,11 @@ def processFull(i, q, r):
         elif os.path.isfile(absPath):
             if not (opt_followSymlink and os.path.islink(absPath)):
                 r.put(("added", os.path.getsize(absPath), "%s%s"%(relPath, opt_snapshotEOL)))
-                if cargo:
-                    absPath = absPath.replace("\r","")
-                    absPath = absPath.replace("\n","")
-
-                    hash = md5sum(absPath)
-                    hash = hash.replace(" ","")
-
-                    r.put(("cargo", "", "%s  %s%s"%(hash, absPath, opt_cargoEOL)))
-
+                cargoEntry(absPath, r)
         else:
             r.put(("failed", "", "invalid path: %s%s"%(relPath, opt_snapshotEOL)))
         q.task_done()
 
-
-# for files that can't be processed by dircmp we have to expend some extra energy and use
-# MD5 checksums
-#
-def compareFunnyFile(fileA, fileB, r):
-    try:
-        hashA = md5sum(fileA)
-        hashB = md5sum(fileB)
-    except IOError as e:
-        message = "%s %s or %s%s"%(e, fileA, fileB, opt_snapshotEOL)
-        r.put(("failed", "", message))
-        sys.stderr.write(message)
-    return hashA == hashB;
 
 def logConfig(r):
     r.put(("config", "", "pathWorkers %s%s"%(opt_threads, opt_snapshotEOL)))
@@ -382,6 +357,8 @@ if __name__ == '__main__':
             # we need to save 1 thread for processing the results queue
             continue
 
+    opt_incremental = opt_previousSnapshot and opt_currentSnapshot
+
     # load stats boundaries
     statsBoundaries = loadBoundaries( opt_boundaryFile )
 
@@ -411,7 +388,7 @@ if __name__ == '__main__':
 
     # setup the pool of path workers
     for i in range(opt_threads):
-        if opt_previousSnapshot:
+        if opt_incremental:
             pathWorker = Thread(target=processIncr, args=(i, pathQueue, resultsQueue))
         else:
             pathWorker = Thread(target=processFull, args=(i, pathQueue, resultsQueue))
