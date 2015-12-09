@@ -58,6 +58,22 @@ def usage():
     print "-jnn      - Controls multi-threading. By default the program will create one thread per CPU core, one thread is used for writing to the output files, the rest for scanning the file system and calculating MD5 hashes. Multi-threading causes output filenames to be in non-deterministic order, as files that take longer to hash will be delayed while they are hashed."
     return;
 
+def openFiles(filelist):
+    fileHandles = {}
+    try:
+        for file in filelist:
+            fileHandles[file] = open(os.path.join(filebase,file), "a")
+    except ValueError:
+        sys.stderr.write("can't open %s"%file)
+        sys.exit(-1)
+    return fileHandles;
+
+def closeFiles(fileHandles):
+    for file in fileHandles:
+        fileHandles[file].close()
+    return;
+
+
 def loadBoundaries(file):
     boundaries = []
     global stats
@@ -131,7 +147,7 @@ def md5sum(filename, blocksize=65536):
 # outputWorker used by threads to process output to the various output files. The must never be more
 # than of this type of thread running.
 #
-def outputResult(i, q):
+def outputResult(i, f, q):
     while True:
         file, bytes, message = q.get()
 
@@ -144,8 +160,7 @@ def outputResult(i, q):
             sys.exit(-1)
         # write out the message to the end of the file
         try:
-            with open(os.path.join(filebase,file), "a") as outputFile:
-                outputFile.write(message)
+           f[file].write(message)
         except:
             sys.stderr.write("Cannot write to %s\n"%file)
             sys.stderr.write("%s: %s\n"%(file, message))
@@ -382,8 +397,10 @@ if __name__ == '__main__':
 
     logConfig(resultsQueue)
 
+    fileHandles = openFiles(validFiles)
+
     # setup the single results worker
-    resultsWorker = Thread(target=outputResult, args=(i, resultsQueue))
+    resultsWorker = Thread(target=outputResult, args=(i, fileHandles, resultsQueue))
     resultsWorker.setDaemon(True)
     resultsWorker.start()
 
@@ -410,7 +427,6 @@ if __name__ == '__main__':
     else:
         pathQueue.put(".")
      
-
     try:
 
         # lets just hang back and wait for the queues to empty
@@ -420,6 +436,7 @@ if __name__ == '__main__':
                  pathQueue.join()
                  resultsQueue.join()
                  exportStats()
+                 closeFiles(fileHandles)
                  exit(1)
     except KeyboardInterrupt:
         # Time to tell all the threads to bail out
