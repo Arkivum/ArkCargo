@@ -191,7 +191,9 @@ def processIncr(i, q, r):
 
         # What have we picked up from the queue
         if os.path.isdir(absPath):
-            r.put(("directory", "", "%s%s"%(relPath, opt_snapshotEOL)))
+            # output only leaf nodes
+            if len(next(os.walk(absPath))[1]) ==0:
+                r.put(("directory", "", "%s%s"%(relPath, opt_snapshotEOL)))
 
             if os.path.isdir(oldPath):
                 for removed in set(os.listdir(oldPath)).difference(os.listdir(absPath)):
@@ -258,7 +260,10 @@ def processFull(i, q, r):
         if os.path.isdir(absPath):
             for childPath in os.listdir(absPath):
 		q.put(os.path.join(relPath, childPath))
-            r.put(("directory", "", "%s%s"%(relPath, opt_snapshotEOL)))
+
+            # output only leaf nodes
+            if len(next(os.walk(absPath))[1]) ==0:
+                r.put(("directory", "", "%s%s"%(relPath, opt_snapshotEOL)))
 
         elif (not opt_followSymlink) and os.path.islink(absPath):
             r.put(("symlink", "", "%s %s%s"%(relPath, os.path.realpath(absPath), opt_snapshotEOL)))
