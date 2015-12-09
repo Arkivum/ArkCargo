@@ -17,6 +17,7 @@ validFiles = ["log", "failed", "added", "modified", "unchanged", "symlink", "dir
 includeStats = {'Full' : ['added', 'modified', 'unchanged'], 'Incr' : ['added', 'modified']}
 statsCounts = {}
 statsBytes = {}
+statsFields = ['Type']
 
 def usage():
     print "Usage: md5cargo.py [OPTIONS]"
@@ -62,6 +63,7 @@ def loadBoundaries(file):
     boundaries = []
     global statsFull
     global statsIncr
+    global statsFields
     counters = {}
 
     try:
@@ -69,7 +71,7 @@ def loadBoundaries(file):
             statsBoundaries = csv.DictReader(csvfile)
             for row in statsBoundaries:
                 boundaries.append((row['Name'], row['Lower'], row['Upper']))
-                counters[row['Name']] = 0
+                statsFields.append(row['Name'])
 
     except ValueError:
         sys.stderr.write("Can't load stats boundaries from file %s (error: %s)\n"%(file, ValueError))
@@ -93,6 +95,7 @@ def updateStats(file, bytes):
 
 def exportStats():
     # exports stats based on categories listed in includeStats & includeStats 
+    print statsFields
     print statsCounts
     print statsBytes
 
