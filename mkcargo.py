@@ -55,7 +55,7 @@ def usage():
     print "                                               containing all the addeded and modified files "
     print "                                               along with their MD5 checksum, in MD5deep format."
     print "            <name>/<iso timestamp>/symlink   - a list of the symlinks and their targets."
-    print "-jnn      - Controls multi-threading. By default the program will create one thread per CPU core, one thread is used for writing to the output files, the rest for scanning the file system and calculating MD5 hashes. Multi-threading causes output filenames to be in non-deterministic order, as files that take longer to hash will be delayed while they are hashed."
+#    print "-jnn      - Controls multi-threading. By default the program will create one thread per CPU core, one thread is used for writing to the output files, the rest for scanning the file system and calculating MD5 hashes. Multi-threading causes output filenames to be in non-deterministic order, as files that take longer to hash will be delayed while they are hashed."
     return;
 
 def openFiles(filelist):
@@ -174,6 +174,7 @@ def processIncr(i, q, r):
     while not terminateThreads:
         relPath = q.get()
         cargo = (opt_mode in cargoModes)
+        mkcargo = False
 
         if relPath == os.path.abspath(relPath):
             # This is an explict entry from the rework file
@@ -213,16 +214,15 @@ def processIncr(i, q, r):
             if os.path.isfile(oldPath):
                 if filecmp.cmp(oldPath, absPath):
                     r.put(("unchanged", os.path.getsize(absPath), "%s%s"%(relPath, opt_snapshotEOL)))
+                    mkcargo = False
                 else:
                     r.put(("modified", os.path.getsize(absPath), "%s%s"%(relPath, opt_snapshotEOL)))
-                    if opt_mode == "SNAPSHOT":
-                        cargo = True
+                    mkcargo = True
             else:    
                 r.put(("added", os.path.getsize(absPath), "%s%s"%(relPath, opt_snapshotEOL)))
-                if opt_mode == "SNAPSHOT":
-                    cargo = True
+                mkcargo = True
             
-            if cargo:
+            if cargo and mkcargo:
                 absPath = absPath.replace("\r","")
                 absPath = absPath.replace("\n","")
 
