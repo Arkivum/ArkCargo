@@ -37,23 +37,6 @@ def logConfig(config, r):
     return;
 
 
-def openFiles(filelist):
-    fileHandles = {}
-    try:
-        for file in filelist:
-            fileHandles[file] = open(os.path.join(args.filebase,file), "a")
-    except ValueError:
-        sys.stderr.write("can't open %s"%file)
-        sys.exit(-1)
-    return fileHandles;
-
-
-def closeFiles(fileHandles):
-    for file in fileHandles:
-        fileHandles[file].close()
-    return;
-
-
 def loadBoundaries(file):
     boundaries = []
     global stats
@@ -124,7 +107,7 @@ def md5sum(r, filename, blocksize=65536):
 # outputWorker used by threads to process output to the various output files. The must never be more
 # than of this type of thread running.
 #
-def outputResult(i, f, q):
+def outputResult(i, files, q):
     while True:
         file, bytes, message = q.get()
 
@@ -135,9 +118,16 @@ def outputResult(i, f, q):
         if file not in validFiles:
             sys.stderr.write("invalid output file'%s'"%file)
             sys.exit(-1)
+        elif not file in files:
+            try:
+                files[file] = open(os.path.join(args.filebase,file), "a")
+            except ValueError:
+                sys.stderr.write("can't open %s"%file)
+                sys.exit(-1)
+
         # write out the message to the end of the file
         try:
-           f[file].write(message)
+           files[file].write(message)
         except:
             sys.stderr.write("Cannot write to %s\n"%file)
             sys.stderr.write("%s: %s\n"%(file, message))
@@ -276,7 +266,7 @@ if __name__ == '__main__':
 
     logConfig(args, resultsQueue)
 
-    fileHandles = openFiles(validFiles)
+    fileHandles = {}
 
     # setup the single results worker
     resultsWorker = Thread(target=outputResult, args=(1, fileHandles, resultsQueue))
@@ -315,7 +305,8 @@ if __name__ == '__main__':
                  pathQueue.join()
                  resultsQueue.join()
                  exportStats()
-                 closeFiles(fileHandles)
+                 for file in fileHandles:
+                     fileHandles[file].close()
                  exit(1)
     except KeyboardInterrupt:
         # Time to tell all the threads to bail out
