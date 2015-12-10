@@ -20,12 +20,23 @@ stats = {}
 statsFields = {}
 
 parser = argparse.ArgumentParser(description='Analysis a filesystem and create a cargo file to drive an ingest job.')
-parser.add_argument('-n', nargs='?', metavar='name', dest='name', type=str, required=True, help='a meaningful name for the dataset, this should be consistent for all snapshot of a given dataset.')
-parser.add_argument('-t', nargs='?', metavar='yyyymmddThhmmss', dest='timestamp', type=str, default=datetime.datetime.now().strftime("%Y%m%dT%H%M%S"), help='if not supplied the timestamp will be generated at the start of a run. Where a filesystem snapshot is being processed then it is more meaningful to use the timestamp from the newer snapshot.')
-parser.add_argument('--debug', dest='debug', action='store_true', help='will write debug output to the log file.')
+
 parser.add_argument('-s', dest='followSymlink', action='store_true', help='follow symlinks and ingest their target, defaults to recording symlinks and their targets in the symlink file.')
+
 parser.add_argument('-j', metavar='threads', nargs='?', dest='threads', type=int, default=(multiprocessing.cpu_count()-1), help='Controls multi-threading. By default the program will create one thread per CPU core, one thread is used for writing to the output files, the rest for scanning the file system and calculating MD5 hashes. Multi-threading causes output filenames to be in non-deterministic order, as files that take longer to hash will be delayed while they are hashed.')
+
+parser.add_argument('-n', nargs='?', metavar='name', dest='name', type=str, required=True, help='a meaningful name for the dataset, this should be consistent for all snapshot of a given dataset.')
+
+parser.add_argument('-t', nargs='?', metavar='yyyymmddThhmmss', dest='timestamp', type=str, default=datetime.datetime.now().strftime("%Y%m%dT%H%M%S"), help='if not supplied the timestamp will be generated at the start of a run. Where a filesystem snapshot is being processed then it is more meaningful to use the timestamp from the newer snapshot.')
+
 parser.add_argument('-o', nargs='?', metavar='output directory', dest='output', type=str, default="output", help='the directory under which to write the output. <output directory>/<name>/<timestamp>/<output files>.')
+
+parser.add_argument('--debug', dest='debug', action='store_true', help=argparse.SUPPRESS)
+parser.add_argument('-boundaries', dest='statsBoundaries', default=os.path.join(os.path.dirname( os.path.realpath( __file__ )), 'boundaries.csv'), type=str, help=argparse.SUPPRESS)
+parser.add_argument('--nocargo', dest='cargo', action='store_true', help=argparse.SUPPRESS)
+parser.add_argument('-cargoEOL', dest='cargoEOL', default='\0', help=argparse.SUPPRESS)
+parser.add_argument('-defaultEOL', dest='snapshotEOL', default='\n', help=argparse.SUPPRESS)
+
 group = parser.add_mutually_exclusive_group(required=True)
 group.add_argument('--rework', metavar='file', nargs='+', help='a file containing absolute paths for which a cargo file needs to be generated')
 group.add_argument('--full', metavar='snapshot', nargs=1, help='generate a cargo file for the current snapshot')
@@ -91,19 +102,6 @@ def exportStats():
         print stats
  
 
-# Calculate the MD5 sum of the file
-#
-def md5sum(r, filename, blocksize=65536):
-    hash = hashlib.md5()
-    try:
-        with open(filename, "rb") as f:
-            for block in iter(lambda: f.read(blocksize), ""):
-                hash.update(block)
-    except IOError as e:
-        r.put(("failed", "", "%s %s%s"%(e, filename, args.snapshotEOL)))
-    return hash.hexdigest();
-
-
 # outputWorker used by threads to process output to the various output files. The must never be more
 # than of this type of thread running.
 #
@@ -135,15 +133,27 @@ def outputResult(i, files, q):
         q.task_done()
 
 
+# Calculate the MD5 sum of the file
+#
 def cargoEntry(path, queue):
-    if args.full: 
-        path = path.replace("\r","")
-        path = path.replace("\n","")
+    if args.cargo:
+        hash = hashlib.md5()
+        blocksize=65536
 
-        hash = md5sum(queue, path)
-        hash = hash.replace(" ","")
+        try:
+            path = path.replace("\r","")
+            path = path.replace("\n","")
 
-        queue.put(("cargo", "", "%s  %s%s"%(hash, path, args.cargoEOL)))
+            with open(path, "rb") as f:
+                for block in iter(lambda: f.read(blocksize), ""):
+                    hash.update(block)
+
+            hash = hash.hexdigest().replace(" ","")
+            queue.put(("cargo", "", "%s  %s%s"%(hash, path, args.cargoEOL)))
+
+        except IOError as e:
+            queue.put(("failed", "", "%s %s%s"%(e, path, args.snapshotEOL)))
+
     return;
 
 
@@ -241,15 +251,36 @@ def processFull(i, q, r):
             r.put(("failed", "", "invalid path: %s%s"%(relPath, args.snapshotEOL)))
         q.task_done()
 
+# pathWorker used by threads to process a rework file
+#
+def processRework(i, q, r):
+    while not terminateThreads:
+        relPath = q.get()
+
+        # This is an explict entry from the rework file
+        absPath = relPath
+
+        if args.debug:
+            r.put(("log", "", "Thread %s - %s%s"%(current_thread().getName(), relPath, args.snapshotEOL)))
+
+        # What have we picked up from the queue
+        if (not args.followSymlink) and os.path.islink(absPath):
+            r.put(("symlink", "", "%s %s%s"%(relPath, os.path.realpath(absPath), args.snapshotEOL)))
+
+        elif os.path.isfile(absPath):
+            if not (args.followSymlink and os.path.islink(absPath)):
+                r.put(("added", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
+                cargoEntry(absPath, r)
+        else:
+            r.put(("failed", "", "invalid path: %s%s"%(relPath, args.snapshotEOL)))
+        q.task_done()
+
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    args.statsBoundaries = os.path.join(os.path.dirname( os.path.realpath( __file__ )), 'boundaries.csv')
-    args.filebase = os.path.join(args.output, args.name, args.timestamp)
-    args.cargoEOL = "\0"
-    args.snapshotEOL = "\n"
 
     try:
+        args.filebase = os.path.join(args.output, args.name, args.timestamp)
         os.makedirs(args.filebase)
     except ValueError:
         sys.stderr.write("Cannot create output directory (error: %s)\n"%ValueError)
@@ -268,36 +299,42 @@ if __name__ == '__main__':
 
     fileHandles = {}
 
-    # setup the single results worker
-    resultsWorker = Thread(target=outputResult, args=(1, fileHandles, resultsQueue))
-    resultsWorker.setDaemon(True)
-    resultsWorker.start()
-
-    # setup the pool of path workers
-    for i in range(args.threads):
-        if args.incr:
-            pathWorker = Thread(target=processIncr, args=(i, pathQueue, resultsQueue))
-        else:
-            pathWorker = Thread(target=processFull, args=(i, pathQueue, resultsQueue))
-        pathWorker.setDaemon(True)
-        pathWorker.start()
-
-    if args.rework:
-        try:
-            for reworkFile in args.rework:
-                for line in open(reworkFile):
-                    explicitFile = line.rstrip('\n').rstrip('\r')
-                    if explicitFile == os.path.abspath(explicitFile):
-                        pathQueue.put(explicitFile)
-                    else:
-                        resultsQueue.put(("failed", "", "must be absolute path: %s%s"%(explicitFile, args.snapshotEOL)))
-        except ValueError:
-            sys.stderr.write("Cannot read list of files to ingest from %s (error: %s)\n"%(args.rework, ValueError))
-            sys.exit(-1)
-    else:
-        pathQueue.put(".")
-     
     try:
+        # setup the single results worker
+        resultsWorker = Thread(target=outputResult, args=(1, fileHandles, resultsQueue))
+        resultsWorker.setDaemon(True)
+        resultsWorker.start()
+
+        # setup the pool of path workers
+        for i in range(args.threads):
+            if args.incr:
+                pathWorker = Thread(target=processIncr, args=(i, pathQueue, resultsQueue))
+            elif args.full:
+                pathWorker = Thread(target=processFull, args=(i, pathQueue, resultsQueue))
+            elif args.rework:
+                pathWorker = Thread(target=processRework, args=(i, pathQueue, resultsQueue))
+            pathWorker.setDaemon(True)
+            pathWorker.start()
+
+
+        # now the worker threads are processing lets feed the pathQueue, this will block if the 
+        # rework file is larger than the queue.
+        if args.rework:
+            try:
+                for reworkFile in args.rework:
+                    for line in open(reworkFile):
+                        explicitFile = line.rstrip('\n').rstrip('\r')
+                        if explicitFile == os.path.abspath(explicitFile):
+                            pathQueue.put(explicitFile)
+                        else:
+                            resultsQueue.put(("failed", "", "must be absolute path: %s%s"%(explicitFile, args.snapshotEOL)))
+            except ValueError:
+                sys.stderr.write("Cannot read list of files to ingest from %s (error: %s)\n"%(args.rework, ValueError))
+                sys.exit(-1)
+        else:
+            pathQueue.put(".")
+
+
         # lets just hang back and wait for the queues to empty
         while not terminateThreads:
              time.sleep(.1)
