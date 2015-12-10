@@ -20,7 +20,7 @@ stats = {}
 statsFields = {}
 
 parser = argparse.ArgumentParser(description='Analysis a filesystem and create a cargo file to drive an ingest job.')
-parser.add_argument('-n', nargs='?', metavar='name', dest='name', type=str, default="default", help='a meaningful name for the dataset, this should be consistent for all snapshot of a given dataset.')
+parser.add_argument('-n', nargs='1', metavar='name', dest='name', type=str, default="default", help='a meaningful name for the dataset, this should be consistent for all snapshot of a given dataset.')
 parser.add_argument('-t', nargs='?', metavar='yyyymmddThhmmss', dest='timestamp', type=str, default=datetime.datetime.now().strftime("%Y%m%dT%H%M%S"), help='if not supplied the timestamp will be generated at the start of a run. Where a filesystem snapshot is being processed then it is more meaningful to use the timestamp from the newer snapshot.')
 parser.add_argument('--debug', dest='debug', action='store_true', help='will write debug output to the log file.')
 parser.add_argument('-s', dest='followSymlink', action='store_true', help='follow symlinks and ingest their target, defaults to recording symlinks and their targets in the symlink file.')
@@ -28,8 +28,8 @@ parser.add_argument('-j', metavar='threads', nargs='?', dest='threads', type=int
 parser.add_argument('-o', nargs='?', metavar='output directory', dest='output', type=str, default="output", help='the directory under which to write the output. <output directory>/<name>/<timestamp>/<output files>.')
 group = parser.add_mutually_exclusive_group(required=True)
 group.add_argument('--rework', metavar='file', nargs='+', help='a file containing absolute paths for which a cargo file needs to be generated')
-group.add_argument('--full', metavar='snapshot', nargs=1, help='a file containing absolute paths for which a cargo file needs to be generated')
-group.add_argument('--incr', metavar='snapshot', nargs=2, help='a file containing absolute paths for which a cargo file needs to be generated')
+group.add_argument('--full', metavar='snapshot', nargs=1, help='generate a cargo file for the current snapshot')
+group.add_argument('--incr', metavar='snapshot', nargs=2, help='generates a cargo file for the difference between the first snapshot and the second')
 
 
 def logConfig(config, r):
