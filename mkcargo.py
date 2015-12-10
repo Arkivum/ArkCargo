@@ -20,7 +20,7 @@ stats = {}
 statsFields = {}
 
 parser = argparse.ArgumentParser(description='Analysis a filesystem and create a cargo file to drive an ingest job.')
-parser.add_argument('-n', nargs='?', metavar='name', dest='name', type=str, default="default", help='a meaningful name for the dataset, this should be consistent for all snapshot of a given dataset.')
+parser.add_argument('-n', nargs='?', metavar='name', dest='name', type=str, required=True, help='a meaningful name for the dataset, this should be consistent for all snapshot of a given dataset.')
 parser.add_argument('-t', nargs='?', metavar='yyyymmddThhmmss', dest='timestamp', type=str, default=datetime.datetime.now().strftime("%Y%m%dT%H%M%S"), help='if not supplied the timestamp will be generated at the start of a run. Where a filesystem snapshot is being processed then it is more meaningful to use the timestamp from the newer snapshot.')
 parser.add_argument('--debug', dest='debug', action='store_true', help='will write debug output to the log file.')
 parser.add_argument('-s', dest='followSymlink', action='store_true', help='follow symlinks and ingest their target, defaults to recording symlinks and their targets in the symlink file.')
