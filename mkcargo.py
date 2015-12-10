@@ -8,6 +8,7 @@ from threading import Thread,current_thread
 import time, datetime, errno
 import filecmp
 import csv
+import argparse
 
 # To stop the queue from consuming all the RAM available
 MaxQueue = 1000
@@ -18,55 +19,34 @@ includeStats = {'full' : ['added', 'modified', 'unchanged'], 'incr' : ['added', 
 stats = {}
 statsFields = {}
 
-def usage():
-    print "Usage: md5cargo.py [OPTIONS]"
-    print "-name <dataset name>"
-    print "          - a meaningful name for the dataset, this should be consistent for all snapshots"
-    print "            of a file structure."
-    print "-mode <mode>"
-    print "          - a number of modes are possible:"
-    print "            SNAPSHOT - use with either a single snapshot or to generate an incremental between"
-    print "                       two snapshots. By default this gnerates cargo files (including checksums)."
-#    print "            LIVE     - use with either a single snapshot or to generate an incremental between"
-#    print "                       a snapshot and a live filesystem. This will not generate a cargo file"
-#    print "                       since the checksums are highly likely to change."
-    print "            STATS    - gathers snapshots doesn't generate cargo files."
-    print "            REWORK   - generate a cargo file based on a list of paths in files."
-    print "-t <yyyymmddThhmmss>"
-    print "          - if not supplied the timestamp will be generated at the start of a run. Where a"
-    print "            filesystem snapshot is being processed then it is more meaningful to use the "
-    print "            timestamp from the newer snapshot."
-    print "-s        - follow symlinks and ingest their target, defaults to outputing symlinks and their"
-    print "            targets in the symlink file."
-    print "-n <dir>  - snapshot mode, used when the new source filesystem is a snapshot."
-    print "-p <dir>  - previous snapshot, if omitted then a full ingest based on the file tree passed with"
-    print "            either the -l or -s options."
-    print "-f <file> - a list of files to explicitly attempt ingest for, may be used to re-try failed files"
-    print "            from a previous ingest snapshot." 
-    print "-o <dir>  - output directory, where to save the output files."
-    print "            <name>/<iso timestamp>/log       - messages and errors during the run"
-    print "            <name>/<iso timestamp>/removed   - files delete since previous snapshot"
-    print "            <name>/<iso timestamp>/unchanged - files unchanged since previous snapshot"
-    print "            <name>/<iso timestamp>/added     - files created since previous snapshot"
-    print "            <name>/<iso timestamp>/modified  - files modified since previous snapshot"
-    print "            <name>/<iso timestamp>/failed    - files that couldn't be processed"
-    print "            <name>/<iso timestamp>/directory - a list of the leaf nodes in the folder tree"
-    print "            <name>/<iso timestamp>/cargo     - a cargo file is generated in snapshot mode, "
-    print "                                               containing all the addeded and modified files "
-    print "                                               along with their MD5 checksum, in MD5deep format."
-    print "            <name>/<iso timestamp>/symlink   - a list of the symlinks and their targets."
-#    print "-jnn      - Controls multi-threading. By default the program will create one thread per CPU core, one thread is used for writing to the output files, the rest for scanning the file system and calculating MD5 hashes. Multi-threading causes output filenames to be in non-deterministic order, as files that take longer to hash will be delayed while they are hashed."
+parser = argparse.ArgumentParser(description='Analysis a filesystem and create a cargo file to drive an ingest job.')
+parser.add_argument('-n', nargs='?', metavar='name', dest='name', type=str, default="default", help='a meaningful name for the dataset, this should be consistent for all snapshot of a given dataset.')
+parser.add_argument('-t', nargs='?', metavar='yyyymmddThhmmss', dest='timestamp', type=str, default=datetime.datetime.now().strftime("%Y%m%dT%H%M%S"), help='if not supplied the timestamp will be generated at the start of a run. Where a filesystem snapshot is being processed then it is more meaningful to use the timestamp from the newer snapshot.')
+parser.add_argument('--debug', dest='debug', action='store_true', help='will write debug output to the log file.')
+parser.add_argument('-s', dest='followSymlink', action='store_true', help='follow symlinks and ingest their target, defaults to recording symlinks and their targets in the symlink file.')
+parser.add_argument('-j', metavar='threads', nargs='?', dest='threads', type=int, default=(multiprocessing.cpu_count()-1), help='Controls multi-threading. By default the program will create one thread per CPU core, one thread is used for writing to the output files, the rest for scanning the file system and calculating MD5 hashes. Multi-threading causes output filenames to be in non-deterministic order, as files that take longer to hash will be delayed while they are hashed.')
+parser.add_argument('-o', nargs='?', metavar='output directory', dest='output', type=str, default="output", help='the directory under which to write the output. <output directory>/<name>/<timestamp>/<output files>.')
+group = parser.add_mutually_exclusive_group(required=True)
+group.add_argument('--rework', metavar='file', nargs='+', help='a file containing absolute paths for which a cargo file needs to be generated')
+group.add_argument('--full', metavar='snapshot', nargs=1, help='a file containing absolute paths for which a cargo file needs to be generated')
+group.add_argument('--incr', metavar='snapshot', nargs=2, help='a file containing absolute paths for which a cargo file needs to be generated')
+
+
+def logConfig(config, r):
+    r.put(("config", "", "%s%s"%(config, args.snapshotEOL)))
     return;
+
 
 def openFiles(filelist):
     fileHandles = {}
     try:
         for file in filelist:
-            fileHandles[file] = open(os.path.join(filebase,file), "a")
+            fileHandles[file] = open(os.path.join(args.filebase,file), "a")
     except ValueError:
         sys.stderr.write("can't open %s"%file)
         sys.exit(-1)
     return fileHandles;
+
 
 def closeFiles(fileHandles):
     for file in fileHandles:
@@ -117,13 +97,12 @@ def exportStats():
     # exports stats based on categories listed in includeStats & includeStats 
     try:
         for statSet in includeStats:
-            file = os.path.join(filebase,'stats_'+statSet+'.csv')
+            file = os.path.join(args.filebase,'stats_'+statSet+'.csv')
             with open(file, "wb") as csvfile:
                 writer = csv.DictWriter(csvfile, fieldnames=statsFields)
                 writer.writeheader()
                 for category in includeStats[statSet]:
                     writer.writerow(stats[category])
-
     except ValueError:
         sys.stderr.write("Can't export stats to file %s (error: %s)\n"%(filefull, ValueError))
         print stats
@@ -131,16 +110,14 @@ def exportStats():
 
 # Calculate the MD5 sum of the file
 #
-def md5sum(filename, blocksize=65536):
+def md5sum(r, filename, blocksize=65536):
     hash = hashlib.md5()
     try:
         with open(filename, "rb") as f:
             for block in iter(lambda: f.read(blocksize), ""):
                 hash.update(block)
     except IOError as e:
-        r.put(("failed", "", "%s %s%s"%(e, filename, opt_snapshotEOL)))
-        sys.stderr.write(message)
-
+        r.put(("failed", "", "%s %s%s"%(e, filename, args.snapshotEOL)))
     return hash.hexdigest();
 
 
@@ -169,14 +146,14 @@ def outputResult(i, f, q):
 
 
 def cargoEntry(path, queue):
-    if opt_mode in cargoModes: 
+    if args.full: 
         path = path.replace("\r","")
         path = path.replace("\n","")
 
-        hash = md5sum(path)
+        hash = md5sum(queue, path)
         hash = hash.replace(" ","")
 
-        queue.put(("cargo", "", "%s  %s%s"%(hash, path, opt_cargoEOL)))
+        queue.put(("cargo", "", "%s  %s%s"%(hash, path, args.cargoEOL)))
     return;
 
 
@@ -185,27 +162,28 @@ def cargoEntry(path, queue):
 def processIncr(i, q, r):
     while not terminateThreads:
         relPath = q.get()
+        
+        previousSnapshot, currentSnapshot = args.incr
 
         # This is an entry for the current snapshot
-        absPath = os.path.abspath(os.path.join(opt_currentSnapshot, relPath))
-        oldPath = os.path.abspath(os.path.join(opt_previousSnapshot, relPath))
+        absPath = os.path.abspath(os.path.join(currentSnapshot, relPath))
+        oldPath = os.path.abspath(os.path.join(previousSnapshot, relPath))
 
-
-        if opt_debug:
-            r.put(("log", "", "Thread %s - %s%s"%(current_thread().getName(), relPath, opt_snapshotEOL)))
+        if args.debug:
+            r.put(("log", "", "Thread %s - %s%s"%(current_thread().getName(), relPath, args.snapshotEOL)))
 
         # What have we picked up from the queue
         if os.path.isdir(absPath):
             # output only leaf nodes
             if len(next(os.walk(absPath))[1]) ==0:
-                r.put(("directory", "", "%s%s"%(relPath, opt_snapshotEOL)))
+                r.put(("directory", "", "%s%s"%(relPath, args.snapshotEOL)))
 
             dirlistOld = os.listdir(oldPath)
             dirlistNew = os.listdir(absPath)
 
             if os.path.isdir(oldPath):
                 for removed in set(dirlistOld).difference(dirlistNew):
-                    r.put(("removed", "", "%s%s"%(os.path.join(relPath, removed), opt_snapshotEOL)))
+                    r.put(("removed", "", "%s%s"%(os.path.join(relPath, removed), args.snapshotEOL)))
                 for common in set(dirlistNew).intersection(dirlistOld):
                     q.put(os.path.join(relPath, common))
                 for added in set(dirlistNew).difference(dirlistOld):
@@ -214,25 +192,25 @@ def processIncr(i, q, r):
                 for childPath in os.listdir(absPath):
                     q.put(os.path.join(relPath, childPath))
 
-        elif (not opt_followSymlink) and os.path.islink(absPath):
+        elif (not args.followSymlink) and os.path.islink(absPath):
             if os.path.realpath(oldPath) == os.path.realpath(absPath):
-                r.put(("unchanged", os.path.getsize(absPath), "%s%s"%(relPath, opt_snapshotEOL)))
+                r.put(("unchanged", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
             else:
-                r.put(("symlink", "", "%s %s%s"%(relPath, os.path.realpath(absPath), opt_snapshotEOL)))
+                r.put(("symlink", "", "%s %s%s"%(relPath, os.path.realpath(absPath), args.snapshotEOL)))
 
         elif os.path.isfile(absPath):
             if os.path.isfile(oldPath):
                 if filecmp.cmp(oldPath, absPath):
-                    r.put(("unchanged", os.path.getsize(absPath), "%s%s"%(relPath, opt_snapshotEOL)))
+                    r.put(("unchanged", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
                 else:
-                    r.put(("modified", os.path.getsize(absPath), "%s%s"%(relPath, opt_snapshotEOL)))
+                    r.put(("modified", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
                     cargoEntry(absPath, r)
             else:    
-                r.put(("added", os.path.getsize(absPath), "%s%s"%(relPath, opt_snapshotEOL)))
+                r.put(("added", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
                 cargoEntry(absPath, r)
             
         else:
-            r.put(("failed", "", "invalid path: %s%s"%(relPath, opt_snapshotEOL)))
+            r.put(("failed", "", "invalid path: %s%s"%(relPath, args.snapshotEOL)))
         q.task_done()
 
 
@@ -242,15 +220,16 @@ def processFull(i, q, r):
     while not terminateThreads:
         relPath = q.get()
 
-        if relPath == os.path.abspath(relPath):
+        if args.rework:
             # This is an explict entry from the rework file
             absPath = relPath
         else:
             # This is an entry for the current snapshot
-            absPath = os.path.abspath(os.path.join(opt_currentSnapshot, relPath))
+            snapshot = args.full[0]
+            absPath = os.path.abspath(os.path.join(snapshot, relPath))
 
-        if opt_debug:
-            r.put(("log", "", "Thread %s - %s%s"%(current_thread().getName(), relPath, opt_snapshotEOL)))
+        if args.debug:
+            r.put(("log", "", "Thread %s - %s%s"%(current_thread().getName(), relPath, args.snapshotEOL)))
 
         # What have we picked up from the queue
         if os.path.isdir(absPath):
@@ -259,158 +238,76 @@ def processFull(i, q, r):
 
             # output only leaf nodes
             if len(next(os.walk(absPath))[1]) ==0:
-                r.put(("directory", "", "%s%s"%(relPath, opt_snapshotEOL)))
+                r.put(("directory", "", "%s%s"%(relPath, args.snapshotEOL)))
 
-        elif (not opt_followSymlink) and os.path.islink(absPath):
-            r.put(("symlink", "", "%s %s%s"%(relPath, os.path.realpath(absPath), opt_snapshotEOL)))
+        elif (not args.followSymlink) and os.path.islink(absPath):
+            r.put(("symlink", "", "%s %s%s"%(relPath, os.path.realpath(absPath), args.snapshotEOL)))
 
         elif os.path.isfile(absPath):
-            if not (opt_followSymlink and os.path.islink(absPath)):
-                r.put(("added", os.path.getsize(absPath), "%s%s"%(relPath, opt_snapshotEOL)))
+            if not (args.followSymlink and os.path.islink(absPath)):
+                r.put(("added", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
                 cargoEntry(absPath, r)
         else:
-            r.put(("failed", "", "invalid path: %s%s"%(relPath, opt_snapshotEOL)))
+            r.put(("failed", "", "invalid path: %s%s"%(relPath, args.snapshotEOL)))
         q.task_done()
 
 
-def logConfig(r):
-    r.put(("config", "", "pathWorkers %s%s"%(opt_threads, opt_snapshotEOL)))
-    r.put(("config", "", "reportWorkers 1%s"%(opt_snapshotEOL)))
-    r.put(("config", "", "snapshotName %s%s"%(opt_snapshotName, opt_snapshotEOL)))
-    r.put(("config", "", "timestamp %s%s"%(opt_snapshotTimestamp, opt_snapshotEOL)))
-    r.put(("config", "", "previousSnapshot %s%s"%(opt_previousSnapshot, opt_snapshotEOL)))
-    r.put(("config", "", "currentSnapshot %s%s"%(opt_currentSnapshot, opt_snapshotEOL)))
-    r.put(("config", "", "previousAbsPath %s%s"%(os.path.abspath(opt_previousSnapshot), opt_snapshotEOL)))
-    r.put(("config", "", "currentAbsPath %s%s"%(os.path.abspath(opt_currentSnapshot), opt_snapshotEOL)))
-    r.put(("config", "", "sourceType %s%s"%(opt_mode, opt_snapshotEOL)))
-    r.put(("config", "", "followSymlinks %s%s"%(opt_followSymlink, opt_snapshotEOL)))
-    r.put(("config", "", "explicitFiles %s%s"%(opt_explicitPaths, opt_snapshotEOL)))
-    return;
-
 if __name__ == '__main__':
-    opt_snapshotEOL = "\n"
-    opt_cargoEOL = "\0"
-    opt_threads = multiprocessing.cpu_count()-1
-    opt_snapshotName =""
-    opt_filebase ="./"
-    opt_snapshotTimestamp = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
-    opt_previousSnapshot = ""
-    opt_currentSnapshot = ""
-    opt_outputDirectory = ""
-    opt_mode = ""
-    opt_explicitPaths =""
-    opt_followSymlink = False
-    opt_debug = False
-    opt_boundaryFile = os.path.join(os.path.dirname( os.path.realpath( __file__ )), 'boundaries.csv') 
+    args = parser.parse_args()
+    args.statsBoundaries = os.path.join(os.path.dirname( os.path.realpath( __file__ )), 'boundaries.csv')
+    args.filebase = os.path.join(args.output, args.name, args.timestamp)
+    args.cargoEOL = "\0"
+    args.snapshotEOL = "\n"
 
-   
-    args = sys.argv[1:]
-    it = iter(args)
-    for i in it:
-        if i.upper() =='-MODE':
-            opt_mode = next(it).upper()
-            #This needs sorting out
-            if not opt_mode in validModes:
-                sys.stdout.write("Unrecognised mode: %s\n"%opt_mode)
-                sys.exit(-1)
-	elif i.upper() == '-DEBUG':
-                opt_debug = True
-        elif i.upper() == '-NAME':
-            opt_snapshotName = next(it)
-            continue 
-        elif i == '-t':
-            tmp_timestamp = next(it)
-            if not datetime.datetime.strptime( tmp_timestamp, "%Y%m%dT%H%M%S" ):
-                sys.stdout.write("Is not valid ISO timestamp %s\n"%tmp_timestamp)
-                sys.exit(-1)
-            else:
-                opt_snapshotTimestamp = tmp_timestamp
-            continue
-        elif i == '-o' or i =='-O':
-            opt_outputDirectory = next(it)
-            if not os.path.isdir(opt_outputDirectory):
-                sys.stderr.write("Can not find output directory %s\n"%opt_outputDirectory)
-                sys.exit(-1)
-            continue
-        elif i == '-p' or i =='-P':
-            opt_previousSnapshot = next(it)
-            if not os.path.isdir(opt_previousSnapshot):
-                sys.stderr.write("Can not find open previous snapshot directory %s\n"%opt_previousSnapshot)
-                sys.exit(-1)
-            continue
-        elif i == '-f' or i =='-F':
-            opt_explicitPaths = next(it)
-            if not os.path.isfile(opt_explicitPaths):
-                sys.stderr.write("Can not find open list of files to ingest %s\n"%opt_explicitPaths)
-                sys.exit(-1)
-        elif i == '-n' or i =='-N':
-            opt_currentSnapshot = next(it)
-            if not os.path.isdir(opt_currentSnapshot):
-                sys.stderr.write("Cannot find open snapshot directory %s\n"%opt_currentSnapshot)
-                sys.exit(-1)
-            continue
-        elif i == '-s' or i =='-S':
-            opt_followSymlink = True
-            continue
-        elif i.startswith('-j'):
-            opt_threads = int(i[2:]) -1
-            # we need to save 1 thread for processing the results queue
-            continue
-
-    opt_incremental = opt_previousSnapshot and opt_currentSnapshot
-
-    # load stats boundaries
-    statsBoundaries = loadBoundaries( opt_boundaryFile )
-
-    # We'll need somewhere to output this lot
-    filebase = os.path.join(opt_outputDirectory, opt_snapshotName, opt_snapshotTimestamp)
     try:
-        os.makedirs(filebase)
+        os.makedirs(args.filebase)
     except ValueError:
         sys.stderr.write("Cannot create output directory (error: %s)\n"%ValueError)
         sys.exit(-1)
 
+    # load stats boundaries
+    statsBoundaries = loadBoundaries( args.statsBoundaries )
 
     terminateThreads = False
 
     # initialise Queues
     pathQueue = Queue(MaxQueue)
-    resultsQueue = Queue(opt_threads*MaxQueue)
+    resultsQueue = Queue(args.threads*MaxQueue)
 
-    logConfig(resultsQueue)
+    logConfig(args, resultsQueue)
 
     fileHandles = openFiles(validFiles)
 
     # setup the single results worker
-    resultsWorker = Thread(target=outputResult, args=(i, fileHandles, resultsQueue))
+    resultsWorker = Thread(target=outputResult, args=(1, fileHandles, resultsQueue))
     resultsWorker.setDaemon(True)
     resultsWorker.start()
 
     # setup the pool of path workers
-    for i in range(opt_threads):
-        if opt_incremental:
+    for i in range(args.threads):
+        if args.incr:
             pathWorker = Thread(target=processIncr, args=(i, pathQueue, resultsQueue))
         else:
             pathWorker = Thread(target=processFull, args=(i, pathQueue, resultsQueue))
         pathWorker.setDaemon(True)
         pathWorker.start()
 
-    if opt_mode == "REWORK":
+    if args.rework:
         try:
-            for line in open(opt_explicitPaths):
-                explicitFile = line.rstrip('\n').rstrip('\r')
-                if explicitFile == os.path.abspath(explicitFile):
-                    pathQueue.put(explicitFile)
-                else:
-                    resultsQueue.put(("failed", "must be absolute path: %s%s"%(explicitFile, opt_snapshotEOL)))
+            for reworkFile in args.rework:
+                for line in open(reworkFile):
+                    explicitFile = line.rstrip('\n').rstrip('\r')
+                    if explicitFile == os.path.abspath(explicitFile):
+                        pathQueue.put(explicitFile)
+                    else:
+                        resultsQueue.put(("failed", "", "must be absolute path: %s%s"%(explicitFile, args.snapshotEOL)))
         except ValueError:
-            sys.stderr.write("Cannot read list of files to ingest from %s (error: %s)\n"%(opt_explicitPaths, ValueError))
+            sys.stderr.write("Cannot read list of files to ingest from %s (error: %s)\n"%(args.rework, ValueError))
             sys.exit(-1)
     else:
         pathQueue.put(".")
      
     try:
-
         # lets just hang back and wait for the queues to empty
         while not terminateThreads:
              time.sleep(.1)
