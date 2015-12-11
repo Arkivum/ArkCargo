@@ -1,6 +1,13 @@
 #!/usr/bin/env python
 #
+# ArkCargo - mkcargo
 #
+# This file is licensed under the Affero General Public License version 3 or
+# later. See the COPYING file.
+#
+# @author Chris Pates <chris.pates@arkivum.com>
+# @copyright Arkivum Limited 2015
+
 
 import os, sys, hashlib, re, multiprocessing
 from Queue import Queue
