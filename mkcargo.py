@@ -2,9 +2,10 @@
 #
 # ArkCargo - mkcargo
 #
-# This file is licensed under the Affero General Public License version 3 or
-# later. See the COPYING file.
-#
+# MIT License, 
+# the code to claculate a file MD5 checksum is based on code from 
+# https://github.com/joswr1ght/md5deep/blob/master/md5deep.py
+# 
 # @author Chris Pates <chris.pates@arkivum.com>
 # @copyright Arkivum Limited 2015
 
@@ -151,6 +152,9 @@ def cargoEntry(path, queue):
             path = path.replace("\r","")
             path = path.replace("\n","")
 
+            # the following means of calculating an MD5 checksum for a file
+            # is based on code in https://github.com/joswr1ght/md5deep/blob/master/md5deep.py
+            # also under MIT license.
             with open(path, "rb") as f:
                 for block in iter(lambda: f.read(blocksize), ""):
                     hash.update(block)
