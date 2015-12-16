@@ -189,10 +189,9 @@ def processIncr(i, q, r):
             if len(next(os.walk(absPath))[1]) ==0:
                 r.put(("directory", "", "%s%s"%(relPath, args.snapshotEOL)))
 
-            dirlistOld = os.listdir(oldPath)
-            dirlistNew = os.listdir(absPath)
-
             if os.path.isdir(oldPath):
+                dirlistOld = os.listdir(oldPath)
+                dirlistNew = os.listdir(absPath)
                 for removed in set(dirlistOld).difference(dirlistNew):
                     r.put(("removed", "", "%s%s"%(os.path.join(relPath, removed), args.snapshotEOL)))
                 for common in set(dirlistNew).intersection(dirlistOld):
