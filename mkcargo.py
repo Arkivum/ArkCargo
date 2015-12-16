@@ -17,12 +17,13 @@ import time, datetime, errno
 import filecmp
 import csv
 import argparse
+import shutil
 
 # To stop the queue from consuming all the RAM available
 MaxQueue = 1000
-validModes = ["SNAPSHOT", "LIVE", "STATS", "REWORK"]
-cargoModes = ["SNAPSHOT", "REWORK"]
 validFiles = ["log", "failed", "added", "modified", "unchanged", "symlink", "directory", "config", "cargo", "removed"]
+moveFiles = ["log", "failed", "config"]
+copyFiles = ["added", "modified", "unchanged", "symlink", "directory", "cargo", "removed", "stats_full.csv", "stats_incr.csv"]
 includeStats = {'full' : ['added', 'modified', 'unchanged'], 'incr' : ['added', 'modified']}
 stats = {}
 statsFields = {}
@@ -41,7 +42,7 @@ parser.add_argument('-o', nargs='?', metavar='output directory', dest='output', 
 
 parser.add_argument('--debug', dest='debug', action='store_true', help=argparse.SUPPRESS)
 parser.add_argument('-boundaries', dest='statsBoundaries', default=os.path.join(os.path.dirname( os.path.realpath( __file__ )), 'boundaries.csv'), type=str, help=argparse.SUPPRESS)
-parser.add_argument('--nocargo', dest='cargo', action='store_true', help=argparse.SUPPRESS)
+parser.add_argument('--nocargo', dest='cargo', action='store_false', help=argparse.SUPPRESS)
 parser.add_argument('-cargoEOL', dest='cargoEOL', default='\0', help=argparse.SUPPRESS)
 parser.add_argument('-defaultEOL', dest='snapshotEOL', default='\n', help=argparse.SUPPRESS)
 
@@ -55,11 +56,43 @@ def logConfig(config, r):
     r.put(("config", "", "%s%s"%(config, args.snapshotEOL)))
     return;
 
+# incase this job has previously been run lets move/copy things out of the way!
+#
+def prepOutput():
+    prefix = "run"
+
+    try:
+        if os.path.isdir(args.filebase):
+            root, dirlist, filelist = next(os.walk(args.filebase))
+
+            # figure out how many times this has been run.
+            numRuns = len(filter(lambda x: x.startswith(prefix), dirlist))
+            lastRun = os.path.join(args.filebase, "run%s"%str(numRuns+1).zfill(4))
+            os.makedirs(lastRun)
+  
+            # if we are reworking then appending to the various metadata files makes sense otherwise
+            # move them out of the way and we need to rerun from scratch.
+            if args.rework:
+                for file in set(filelist).intersection(copyFiles):
+                    shutil.copy2(os.path.join(args.filebase, file), lastRun)
+            else:
+                for file in set(filelist).intersection(copyFiles):
+                    shutil.move(os.path.join(args.filebase, file), lastRun)
+     
+            for file in set(filelist).intersection(moveFiles):
+                shutil.move(os.path.join(args.filebase, file), lastRun)
+        else:
+            os.makedirs(args.filebase)
+
+    except ValueError:
+        sys.stderr.write("Can't archvie previous run: %s)\n"%(file, ValueError))
+        sys.exit(-1)
+        
+    return;
 
 def loadBoundaries(file):
     boundaries = []
-    global stats
-    global statsFields
+    statsFields = []
     fields = {'Category' : ''}
     countfields = {}
     bytesfields = {}
@@ -76,13 +109,54 @@ def loadBoundaries(file):
         sys.stderr.write("Can't load stats boundaries from file %s (error: %s)\n"%(file, ValueError))
         sys.exit(-1)
 
-    fields = dict(fields.items() + bytesfields.items() + countfields.items())
     statsFields = ['Category'] + bytesfields.keys() + countfields.keys()
 
+    return boundaries, statsFields;
+
+def prepStats():
+    boundaries = []
+    fields =[]
+
+    # load stats boundaries
+    boundaries, fields = loadBoundaries( args.statsBoundaries )
+
+    if os.path.isfile(os.path.join(args.filebase, "stats_full.csv")):
+        stats = loadStats(fields)
+    else:
+        stats = initStats(fields)
+    return boundaries, fields, stats;
+
+
+def loadStats(fields):
+    # imports stats and boundaries, only relevant for 'rework' mode
+    try:
+        file = os.path.join(args.filebase,'stats_full.csv')
+        with open(file) as csvfile:
+            statsBoundaries = csv.DictReader(csvfile)
+            for row in statsBoundaries:
+                stats[row['Category']] = {}
+                for field in fields:
+                    if field == 'Category':
+                        stats[row['Category']][field] = row[field]
+                    else:
+                        stats[row['Category']][field] = int(row[field])
+    except ValueError:
+        sys.stderr.write("Can't import stats to file %s (error: %s)\n"%(file, ValueError))
+        exit(-1)
+
+    return stats;
+
+def initStats(fields):
+    # imports boundaries and initialise stats
+
     for category in includeStats['full']:
-        stats[category] = fields.copy()
-        stats[category]['Category'] = category
-    return boundaries
+        stats[category] = {}
+        for field in fields:
+            if field == 'Category':
+                stats[category]['Category'] = category
+            else:   
+                stats[category][field] = 0
+    return stats;
 
 
 def updateStats(file, bytes):
@@ -107,8 +181,8 @@ def exportStats():
                     writer.writerow(stats[category])
     except ValueError:
         sys.stderr.write("Can't export stats to file %s (error: %s)\n"%(filefull, ValueError))
-        print stats
- 
+    return;
+
 
 # outputWorker used by threads to process output to the various output files. The must never be more
 # than of this type of thread running.
@@ -291,13 +365,13 @@ if __name__ == '__main__':
 
     try:
         args.filebase = os.path.join(args.output, args.name, args.timestamp)
-        os.makedirs(args.filebase)
+        prepOutput()
+
+        statsBoundaries, statsFields, stats = prepStats()
     except ValueError:
         sys.stderr.write("Cannot create output directory (error: %s)\n"%ValueError)
         sys.exit(-1)
 
-    # load stats boundaries
-    statsBoundaries = loadBoundaries( args.statsBoundaries )
 
     terminateThreads = False
 
