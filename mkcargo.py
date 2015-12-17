@@ -177,7 +177,11 @@ def exportStats():
             file = os.path.join(args.filebase,'stats_'+statSet+'.csv')
             with open(file, "wb") as csvfile:
                 writer = csv.DictWriter(csvfile, fieldnames=statsFields)
-                writer.writeheader()
+                #writer.writeheader()
+                fields = {}
+                for field in statsFields:
+                    fields[field] = field
+                writer.writerow(fields)
                 for category in includeStats[statSet]:
                     writer.writerow(stats[category])
     except ValueError:
