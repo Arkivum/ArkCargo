@@ -49,6 +49,7 @@ parser.add_argument('-defaultEOL', dest='snapshotEOL', default='\n', help=argpar
 group = parser.add_mutually_exclusive_group(required=True)
 group.add_argument('--rework', metavar='file', nargs='+', help='a file containing absolute paths for which a cargo file needs to be generated')
 group.add_argument('--full', metavar='snapshot', nargs=1, help='generate a cargo file for the current snapshot')
+group.add_argument('--stats', metavar='snapshot', nargs=1, help='calculate stats (does not generate a cargo file)for the current snapshot')
 group.add_argument('--incr', metavar='snapshot', nargs=2, help='generates a cargo file for the difference between the first snapshot and the second')
 
 
@@ -304,13 +305,12 @@ def processFull(i, q, r):
     while not terminateThreads:
         relPath = q.get()
 
-        if args.rework:
-            # This is an explict entry from the rework file
-            absPath = relPath
+        if args.stats:
+            snapshot = args.stats[0]
         else:
             # This is an entry for the current snapshot
             snapshot = args.full[0]
-            absPath = os.path.abspath(os.path.join(snapshot, relPath))
+        absPath = os.path.abspath(os.path.join(snapshot, relPath))
 
         if args.debug:
             r.put(("log", "", "Thread %s - %s%s"%(current_thread().getName(), relPath, args.snapshotEOL)))
@@ -369,6 +369,8 @@ if __name__ == '__main__':
 
         statsBoundaries, statsFields, stats = prepStats()
     except ValueError:
+        # Time to tell all the threads to bail out
+        terminateThreads = True
         sys.stderr.write("Cannot create output directory (error: %s)\n"%ValueError)
         sys.exit(-1)
 
@@ -397,9 +399,11 @@ if __name__ == '__main__':
                 pathWorker = Thread(target=processFull, args=(i, pathQueue, resultsQueue))
             elif args.rework:
                 pathWorker = Thread(target=processRework, args=(i, pathQueue, resultsQueue))
+            elif args.stats:
+                args.cargo = False
+                pathWorker = Thread(target=processFull, args=(i, pathQueue, resultsQueue))
             pathWorker.setDaemon(True)
             pathWorker.start()
-
 
         # now the worker threads are processing lets feed the pathQueue, this will block if the 
         # rework file is larger than the queue.
@@ -413,6 +417,8 @@ if __name__ == '__main__':
                         else:
                             resultsQueue.put(("failed", "", "must be absolute path: %s%s"%(explicitFile, args.snapshotEOL)))
             except ValueError:
+                # Time to tell all the threads to bail out
+                terminateThreads = True
                 sys.stderr.write("Cannot read list of files to ingest from %s (error: %s)\n"%(args.rework, ValueError))
                 sys.exit(-1)
         else:
