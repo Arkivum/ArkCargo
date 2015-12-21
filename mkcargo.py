@@ -86,7 +86,7 @@ def prepOutput():
             os.makedirs(args.filebase)
 
     except ValueError:
-        sys.stderr.write("Can't archvie previous run: %s)\n"%(file, ValueError))
+        sys.stderr.write("Can't archive previous run: %s)\n"%(file, ValueError))
         sys.exit(-1)
         
     return;
@@ -242,8 +242,9 @@ def cargoEntry(path, queue):
             queue.put(("cargo", "", "%s  %s%s"%(hash, path, args.cargoEOL)))
 
         except IOError as e:
-            queue.put(("failed", "", "%s %s%s"%(e, path, args.snapshotEOL)))
-
+            queue.put(("log", "", "%s %s%s"%(e, path, args.snapshotEOL)))
+            queue.put(("failed", "", "%s%s"%(path, args.snapshotEOL)))
+            pass
     return;
 
 
@@ -262,44 +263,54 @@ def processIncr(i, q, r):
         if args.debug:
             r.put(("log", "", "Thread %s - %s%s"%(current_thread().getName(), relPath, args.snapshotEOL)))
 
-        # What have we picked up from the queue
-        if os.path.isdir(absPath):
-            # output only leaf nodes
-            if len(next(os.walk(absPath))[1]) ==0:
-                r.put(("directory", "", "%s%s"%(relPath, args.snapshotEOL)))
+        if os.access(absPath, os.R_OK):
+            # What have we picked up from the queue
+            if os.path.isdir(absPath):
+                # output only leaf nodes
+                if len(next(os.walk(absPath))[1]) ==0:
+                    r.put(("directory", "", "%s%s"%(relPath, args.snapshotEOL)))
 
-            if os.path.isdir(oldPath):
-                dirlistOld = os.listdir(oldPath)
-                dirlistNew = os.listdir(absPath)
-                for removed in set(dirlistOld).difference(dirlistNew):
-                    r.put(("removed", "", "%s%s"%(os.path.join(relPath, removed), args.snapshotEOL)))
-                for common in set(dirlistNew).intersection(dirlistOld):
-                    q.put(os.path.join(relPath, common))
-                for added in set(dirlistNew).difference(dirlistOld):
-                    q.put(os.path.join(relPath, added))
-            else:
-                for childPath in os.listdir(absPath):
-                    q.put(os.path.join(relPath, childPath))
+                if os.path.isdir(oldPath):
+                    if os.access(oldPath, os.R_OK):
+                        dirlistOld = os.listdir(oldPath)
+                        dirlistNew = os.listdir(absPath)
+                        for removed in set(dirlistOld).difference(dirlistNew):
+                            r.put(("removed", "", "%s%s"%(os.path.join(relPath, removed), args.snapshotEOL)))
+                        for common in set(dirlistNew).intersection(dirlistOld):
+                            q.put(os.path.join(relPath, common))
+                        for added in set(dirlistNew).difference(dirlistOld):
+                            q.put(os.path.join(relPath, added))
+                    else:
+                        r.put(("log", "", "Permission Denied: %s%s"%(oldPath, args.snapshotEOL)))
+                        r.put(("failed", "", "%s%s"%(oldPath, args.snapshotEOL)))
 
-        elif (not args.followSymlink) and os.path.islink(absPath):
-            if os.path.realpath(oldPath) == os.path.realpath(absPath):
-                r.put(("unchanged", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
-            else:
-                r.put(("symlink", "", "%s %s%s"%(relPath, os.path.realpath(absPath), args.snapshotEOL)))
+                else:
+                    for childPath in os.listdir(absPath):
+                        q.put(os.path.join(relPath, childPath))
 
-        elif os.path.isfile(absPath):
-            if os.path.isfile(oldPath):
-                if filecmp.cmp(oldPath, absPath):
+            elif (not args.followSymlink) and os.path.islink(absPath):
+                if os.path.realpath(oldPath) == os.path.realpath(absPath):
                     r.put(("unchanged", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
                 else:
-                    r.put(("modified", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
+                    r.put(("symlink", "", "%s %s%s"%(relPath, os.path.realpath(absPath), args.snapshotEOL)))
+
+            elif os.path.isfile(absPath):
+                if os.path.isfile(oldPath):
+                    if filecmp.cmp(oldPath, absPath):
+                        r.put(("unchanged", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
+                    else:
+                        r.put(("modified", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
+                        cargoEntry(absPath, r)
+                else:    
+                    r.put(("added", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
                     cargoEntry(absPath, r)
-            else:    
-                r.put(("added", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
-                cargoEntry(absPath, r)
             
+            else:
+                r.put(("log", "", "invalid path: %s%s"%(relPath, args.snapshotEOL)))
+                r.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
         else:
-            r.put(("failed", "", "invalid path: %s%s"%(relPath, args.snapshotEOL)))
+            r.put(("log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
+            r.put(("failed", "", "%s%s"%(absPath, args.snapshotEOL)))
         q.task_done()
 
 
@@ -319,24 +330,28 @@ def processFull(i, q, r):
         if args.debug:
             r.put(("log", "", "Thread %s - %s%s"%(current_thread().getName(), relPath, args.snapshotEOL)))
 
-        # What have we picked up from the queue
-        if os.path.isdir(absPath):
-            for childPath in os.listdir(absPath):
-		q.put(os.path.join(relPath, childPath))
+        if os.access(absPath, os.R_OK):
+            # What have we picked up from the queue
+            if os.path.isdir(absPath):
+                for childPath in os.listdir(absPath):
+		    q.put(os.path.join(relPath, childPath))
 
-            # output only leaf nodes
-            if len(next(os.walk(absPath))[1]) ==0:
-                r.put(("directory", "", "%s%s"%(relPath, args.snapshotEOL)))
+                # output only leaf nodes
+                if len(next(os.walk(absPath))[1]) ==0:
+                    r.put(("directory", "", "%s%s"%(relPath, args.snapshotEOL)))
 
-        elif (not args.followSymlink) and os.path.islink(absPath):
-            r.put(("symlink", "", "%s %s%s"%(relPath, os.path.realpath(absPath), args.snapshotEOL)))
+            elif (not args.followSymlink) and os.path.islink(absPath):
+                r.put(("symlink", "", "%s %s%s"%(relPath, os.path.realpath(absPath), args.snapshotEOL)))
 
-        elif os.path.isfile(absPath):
-            if not (args.followSymlink and os.path.islink(absPath)):
-                r.put(("added", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
-                cargoEntry(absPath, r)
+            elif os.path.isfile(absPath):
+                if not (args.followSymlink and os.path.islink(absPath)):
+                    r.put(("added", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
+                    cargoEntry(absPath, r)
+            else:
+                r.put(("failed", "", "invalid path: %s%s"%(relPath, args.snapshotEOL)))
         else:
-            r.put(("failed", "", "invalid path: %s%s"%(relPath, args.snapshotEOL)))
+            r.put(("log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
+            r.put(("failed", "", "%s%s"%(absPath, args.snapshotEOL)))
         q.task_done()
 
 # pathWorker used by threads to process a rework file
@@ -351,16 +366,20 @@ def processRework(i, q, r):
         if args.debug:
             r.put(("log", "", "Thread %s - %s%s"%(current_thread().getName(), relPath, args.snapshotEOL)))
 
-        # What have we picked up from the queue
-        if (not args.followSymlink) and os.path.islink(absPath):
-            r.put(("symlink", "", "%s %s%s"%(relPath, os.path.realpath(absPath), args.snapshotEOL)))
+        if os.access(absPath, os.R_OK):
+            # What have we picked up from the queue
+            if (not args.followSymlink) and os.path.islink(absPath):
+                r.put(("symlink", "", "%s %s%s"%(relPath, os.path.realpath(absPath), args.snapshotEOL)))
 
-        elif os.path.isfile(absPath):
-            if not (args.followSymlink and os.path.islink(absPath)):
-                r.put(("added", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
-                cargoEntry(absPath, r)
+            elif os.path.isfile(absPath):
+                if not (args.followSymlink and os.path.islink(absPath)):
+                    r.put(("added", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
+                    cargoEntry(absPath, r)
+            else:
+                r.put(("failed", "", "invalid path: %s%s"%(relPath, args.snapshotEOL)))
         else:
-            r.put(("failed", "", "invalid path: %s%s"%(relPath, args.snapshotEOL)))
+            r.put(("log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
+            r.put(("failed", "", "%s%s"%(absPath, args.snapshotEOL)))
         q.task_done()
 
 
