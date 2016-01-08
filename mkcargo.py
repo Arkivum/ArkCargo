@@ -20,7 +20,7 @@ import argparse
 import shutil
 
 # To stop the queue from consuming all the RAM available
-MaxQueue = 1000
+MaxQueue = 100000
 validFiles = ["log", "failed", "added", "modified", "unchanged", "symlink", "directory", "config", "cargo", "removed"]
 moveFiles = ["log", "failed", "config"]
 copyFiles = ["added", "modified", "unchanged", "symlink", "directory", "cargo", "removed", "stats_full.csv", "stats_incr.csv"]
@@ -165,7 +165,7 @@ def updateStats(file, bytes):
 
     for boundary in statsBoundaries:
         name, lower, upper = boundary
-        if (bytes >= int(lower) and bytes < int(upper)) or (bytes >= int(lower) and upper == ""):
+        if (bytes >= int(lower) and upper == '') or (bytes >= int(lower) and bytes < int(upper)):
             stats[file]['count '+name] += 1
             stats[file]['bytes '+name] += bytes
 
@@ -205,7 +205,7 @@ def outputResult(i, files, q):
             sys.exit(-1)
         elif not file in files:
             try:
-                files[file] = open(os.path.join(args.filebase,file), "a")
+                files[file] = open(os.path.join(args.filebase,file), "a", 0)
             except ValueError:
                 sys.stderr.write("can't open %s"%file)
                 sys.exit(-1)
