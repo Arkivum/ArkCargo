@@ -37,7 +37,7 @@ parser.add_argument('-j', metavar='threads', nargs='?', dest='threads', type=int
 
 parser.add_argument('-n', nargs='?', metavar='name', dest='name', type=str, required=True, help='a meaningful name for the dataset, this should be consistent for all snapshot of a given dataset.')
 
-parser.add_argument('-t', nargs='?', metavar='yyyymmddThhmmss', dest='timestamp', type=str, default=datetime.datetime.now().strftime("%Y%m%dT%H%M%S"), help='if not supplied the timestamp will be generated at the start of a run. Where a filesystem snapshot is being processed then it is more meaningful to use the timestamp from the newer snapshot.')
+parser.add_argument('-t', nargs='?', metavar='yyyymmddThhmmss', dest='timestamp', type=str, required=True, help='Where a filesystem snapshot is being processed then it is important to use the timestamp from the newer snapshot.')
 
 parser.add_argument('-o', nargs='?', metavar='output directory', dest='output', type=str, default="output", help='the directory under which to write the output. <output directory>/<name>/<timestamp>/<output files>.')
 
@@ -47,7 +47,7 @@ parser.add_argument('--nocargo', dest='cargo', action='store_false', help=argpar
 parser.add_argument('-cargoEOL', dest='cargoEOL', default='\0', help=argparse.SUPPRESS)
 parser.add_argument('-defaultEOL', dest='snapshotEOL', default='\n', help=argparse.SUPPRESS)
 
-parser.add_argument('--rework', metavar='file', nargs='+', help='a file containing absolute paths for which a cargo file needs to be generated')
+parser.add_argument('--rework', metavar='file', nargs='+', help='a file containing paths for which a cargo file needs to be generated')
 parser.add_argument('--stats', dest='stats', action='store_false', help='calculate stats (does not generate a cargo file)')
 
 group = parser.add_mutually_exclusive_group(required=True)
@@ -226,123 +226,35 @@ def outputResult(i, files, q):
 # Calculate the MD5 sum of the file
 #
 def cargoEntry(path, queue):
-    if args.cargo:
+    if args.cargo:        
         hash = hashlib.md5()
         blocksize=65536
 
         try:
-            path = path.replace("\r","")
-            path = path.replace("\n","")
+            #path = path.replace("\r","")
+            #path = path.replace("\n","")
+            absPath = os.path.abspath(os.path.join(args.snapshotCurrent, path))
 
             # the following means of calculating an MD5 checksum for a file
             # is based on code in https://github.com/joswr1ght/md5deep/blob/master/md5deep.py
             # also under MIT license.
-            with open(path, "rb") as f:
+            with open(absPath, "rb") as f:
                 for block in iter(lambda: f.read(blocksize), ""):
                     hash.update(block)
 
             hash = hash.hexdigest().replace(" ","")
-            queue.put(("cargo", "", "%s  %s%s"%(hash, path, args.cargoEOL)))
+            queue.put(("cargo", "", "%s  %s%s"%(hash, absPath, args.cargoEOL)))
 
         except IOError as e:
-            queue.put(("log", "", "%s %s%s"%(e, path, args.snapshotEOL)))
+            queue.put(("log", "", "%s %s%s"%(e, absPath, args.snapshotEOL)))
             queue.put(("failed", "", "%s%s"%(path, args.snapshotEOL)))
             pass
     return;
 
 
-# pathWorker used by threads to process an incremental snapshot of the file tree
-#
-def processIncr(i, f, d, r):
-    previousSnapshot, currentSnapshot = args.snapshots
-    while not terminateThreads:
-        getDir = (not d.empty() and (f.qsize() < queueParams['lowWater']))
-        if getDir:
-            q = d
-        else:
-            q = f
-        relPath = q.get()
-        
-        # This is an entry for the current snapshot
-        absPath = os.path.abspath(os.path.join(currentSnapshot, relPath))
-        oldPath = os.path.abspath(os.path.join(previousSnapshot, relPath))
-
-        if args.debug:
-            r.put(("log", "", "Thread %s - %s%s"%(current_thread().getName(), relPath, args.snapshotEOL)))
-
-        if os.access(absPath, os.R_OK):
-            # What have we picked up from the queue
-            if getDir:
-                # output only leaf nodes
-                if len(next(os.walk(absPath))[1]) ==0:
-                    r.put(("directory", "", "%s%s"%(relPath, args.snapshotEOL)))
-
-                if os.path.isdir(oldPath):
-                    if os.access(oldPath, os.R_OK):
-                        dirlistOld = os.listdir(oldPath)
-                        dirlistNew = os.listdir(absPath)
-                        for removed in set(dirlistOld).difference(dirlistNew):
-                            r.put(("removed", "", "%s%s"%(os.path.join(relPath, removed), args.snapshotEOL)))
-                        for common in set(dirlistNew).intersection(dirlistOld):
-                            newPath = os.path.join(relPath, common)
-                            if os.path.isdir(newPath):
-                                d.put(newPath)
-                            else:
-                                f.put(newPath)  
-                        for added in set(dirlistNew).difference(dirlistOld):
-                            addPath = os.path.join(relPath, added)
-                            if os.path.isdir(addPath):
-                                d.put(addPath)
-                            else:
-                                f.put(addPath)  
-                    else:
-                        r.put(("log", "", "Permission Denied: %s%s"%(oldPath, args.snapshotEOL)))
-                        r.put(("failed", "", "%s%s%s"%(oldPath, "/", args.snapshotEOL)))
-
-                else:
-                    for childPath in os.listdir(absPath):
-                        newPath = os.path.join(relPath, childPath)
-                        if os.path.isdir(newPath):
-                            d.put(newPath)
-                        else:
-                            f.put(newPath)
-
-            elif (not args.followSymlink) and os.path.islink(absPath):
-                if os.path.realpath(oldPath) == os.path.realpath(absPath):
-                    r.put(("unchanged", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
-                else:
-                    r.put(("symlink", "", "%s %s%s"%(relPath, os.path.realpath(absPath), args.snapshotEOL)))
-
-            elif os.path.isfile(absPath):
-                if os.path.isfile(oldPath):
-                    if filecmp.cmp(oldPath, absPath):
-                        r.put(("unchanged", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
-                    else:
-                        r.put(("modified", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
-                        cargoEntry(absPath, r)
-                else:    
-                    r.put(("added", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
-                    cargoEntry(absPath, r)
-            
-            else:
-                r.put(("log", "", "invalid path: %s%s"%(relPath, args.snapshotEOL)))
-                r.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
-        else:
-            r.put(("log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
-            r.put(("failed", "", "%s%s"%(absPath, args.snapshotEOL)))
-        q.task_done()
-
-
 # pathWorker used by threads to process a Full/Incr snapshot of the file tree
 #
-def processSnapshot(i, f, d, r):
-    incrMode = (len(args.snapshots) == 2)
-
-    if incrMode:
-       previousSnapshot, currentSnapshot = args.snapshots
-    else:
-       currentSnapshot = args.snapshots[0]
-
+def snapshot(i, f, d, r):
     lowWater = queueParams['lowWater']
     
     while not terminateThreads:
@@ -362,16 +274,16 @@ def processSnapshot(i, f, d, r):
             r.put(("log", "", "%s - %s%s"%(current_thread().getName(), action, args.snapshotEOL)))
 
         if action == 'directory':
-            if incrMode:
-                processDirIncr(d.get(), d, f, r)
+            if args.mode == 'incr':
+                dirIncr(d.get(), d, f, r)
             else:
-                processDirFull(d.get(), d, f, r)
+                dirFull(d.get(), d, f, r)
             d.task_done()
         elif action == 'file':
-            if incrMode:
-                processFileIncr(f.get(), r)
+            if args.mode == 'incr':
+                fileIncr(f.get(), r)
             else:
-                processFileFull(f.get(), r)
+                fileFull(f.get(), r)
             f.task_done()
         else:
 	    time.sleep(1)
@@ -379,30 +291,30 @@ def processSnapshot(i, f, d, r):
 
 # process a single file path 
 # 
-def processFileFull(relPath, outQueue):
+def fileFull(relPath, outQueue):
     absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
 
     if not os.access(absPath, os.R_OK):
         outQueue.put(("log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
-        outQueue.put(("failed", "", "%s%s"%(absPath, args.snapshotEOL)))
+        outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
     else:
         if (not args.followSymlink) and os.path.islink(absPath):
             outQueue.put(("symlink", "", "%s %s%s"%(relPath, os.path.realpath(absPath), args.snapshotEOL)))
         else:
             outQueue.put(("added", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
-            cargoEntry(absPath, outQueue)
+            cargoEntry(relPath, outQueue)
     return;
 
 
 # process a single file path
 #
-def processFileIncr(relPath, outQueue):
+def fileIncr(relPath, outQueue):
     absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
     oldPath = os.path.abspath(os.path.join(args.snapshotPrevious, relPath))
 
     if not os.access(absPath, os.R_OK):
         outQueue.put(("log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
-        outQueue.put(("failed", "", "%s%s"%(absPath, args.snapshotEOL)))
+        outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
     elif (not args.followSymlink) and os.path.islink(absPath):
         outQueue.put(("symlink", "", "%s %s%s"%(relPath, os.path.realpath(absPath), args.snapshotEOL)))
     else:
@@ -414,21 +326,21 @@ def processFileIncr(relPath, outQueue):
                 outQueue.put(("unchanged", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
             else:
                 outQueue.put(("modified", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
-                cargoEntry(absPath, outQueue)
+                cargoEntry(relPath, outQueue)
         else:    
             outQueue.put(("added", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
-            cargoEntry(absPath, outQueue)
+            cargoEntry(relPath, outQueue)
     return;
 
 
 # process a single directory
 #
-def processDirFull(relPath, dirQueue, fileQueue, outQueue):
+def dirFull(relPath, dirQueue, fileQueue, outQueue):
     absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
 
     if not os.access(absPath, os.R_OK):
         outQueue.put(("log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
-        outQueue.put(("failed", "", "%s%s"%(absPath, args.snapshotEOL)))
+        outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
     else:
         directory_name, dirs, files = next(os.walk(absPath))
 
@@ -446,16 +358,16 @@ def processDirFull(relPath, dirQueue, fileQueue, outQueue):
 
 # process a single directory
 #
-def processDirIncr(relPath, dirQueue, fileQueue, outQueue):
+def dirIncr(relPath, dirQueue, fileQueue, outQueue):
     absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
     oldPath = os.path.abspath(os.path.join(args.snapshotPrevious, relPath))
 
     if not os.access(absPath, os.R_OK):
         outQueue.put(("log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
-        outQueue.put(("failed", "", "%s%s"%(absPath, args.snapshotEOL)))
+        outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
     elif not os.access(oldPath, os.R_OK):
         outQueue.put(("log", "", "Permission Denied; %s%s"%(oldPath, args.snapshotEOL)))
-        outQueue.put(("failed", "", "%s%s"%(oldPath, args.snapshotEOL)))
+        outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
     else:    
         if os.path.isdir(oldPath):
             newDir_name, newDirs, newFiles = next(os.walk(absPath))
@@ -474,7 +386,7 @@ def processDirIncr(relPath, dirQueue, fileQueue, outQueue):
             for childPath in newFiles:
                 fileQueue.put(os.path.join(relPath, childPath))
         else:
-            processDirFull(d.get(), d, f, r)
+            dirFull(d.get(), d, f, r)
     return;
 
 
@@ -485,8 +397,10 @@ if __name__ == '__main__':
     try:
         if len(args.snapshots) == 1:
             args.snapshotCurrent = args.snapshots[0]
+            args.mode = 'full'
         else:
             args.snapshotPrevious, args.snapshotCurrent = args.snapshots
+            args.mode = 'incr'
 
         args.filebase = os.path.join(args.output, args.name, args.timestamp)
         prepOutput()
@@ -520,7 +434,7 @@ if __name__ == '__main__':
 
         # setup the pool of path workers
         for i in range(args.threads):
-            pathWorker = Thread(target=processSnapshot, args=(i, fileQueue, dirQueue, resultsQueue))
+            pathWorker = Thread(target=snapshot, args=(i, fileQueue, dirQueue, resultsQueue))
 
             pathWorker.setDaemon(True)
             pathWorker.start()
@@ -531,11 +445,11 @@ if __name__ == '__main__':
             try:
                 for reworkFile in args.rework:
                     for line in open(reworkFile):
-                        explicitFile = line.rstrip('\n').rstrip('\r')
-                        if explicitFile == os.path.abspath(explicitFile):
-                            fileQueue.put(explicitFile)
+                        reworkPath = line.rstrip('\n').rstrip('\r')
+                        if os.path.isdir(reworkPath):
+                            dirQueue.put(reworkPath)
                         else:
-                            resultsQueue.put(("failed", "", "must be absolute path: %s%s"%(explicitFile, args.snapshotEOL)))
+                            fileQueue.put(reworkPath)
             except ValueError:
                 # Time to tell all the threads to bail out
                 terminateThreads = True
