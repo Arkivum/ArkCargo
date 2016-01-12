@@ -289,9 +289,28 @@ def snapshot(i, f, d, r):
 	    time.sleep(1)
     return;
 
+# pathWorker used by threads to process a Full snapshot of the file tree
+#
+def snapshotFull(i, f, d, r):
+    lowWater = queueParams['lowWater']
+   
+    while not terminateThreads:
+        if f.qsize() > lowWater:
+            fileFull(f, r)
+        else:
+            if not d.empty():
+                dirFull(d, f, r)
+            elif f.empty():
+	        time.sleep(1)
+            else:
+                fileFull(f, r)
+    return;
+
+
 # process a single file path 
 # 
-def fileFull(relPath, outQueue):
+def fileFull(fileQueue, outQueue):
+    relPath = fileQueue.get()
     absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
 
     if not os.access(absPath, os.R_OK):
@@ -303,12 +322,56 @@ def fileFull(relPath, outQueue):
         else:
             outQueue.put(("added", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
             cargoEntry(relPath, outQueue)
+    fileQueue.task_done()
+    return;
+
+# process a single directory
+#
+def dirFull(dirQueue, fileQueue, outQueue):
+    relPath = dirQueue.get()
+    absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
+
+    if not os.access(absPath, os.R_OK):
+        outQueue.put(("log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
+        outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
+    else:
+        directory_name, dirs, files = next(os.walk(absPath))
+
+        if len(dirs) > 0:
+            for childPath in dirs:
+                dirQueue.put(os.path.join(relPath, childPath))
+        else:
+            # must be leaf node lets record it
+            outQueue.put(("directory", "", "%s%s"%(relPath, args.snapshotEOL)))
+
+        for childPath in files:
+            fileQueue.put(os.path.join(relPath, childPath))
+    dirQueue.task_done()
+    return;
+
+
+# pathWorker used by threads to process a Full snapshot of the file tree
+#
+def snapshotIncr(i, f, d, r):
+    lowWater = queueParams['lowWater']
+  
+    while not terminateThreads:
+        if f.qsize() > lowWater:
+            fileIncr(f, r)
+        else:
+            if not d.empty():
+                dirIncr(d, f, r)
+            elif f.empty():
+                time.sleep(1)
+            else:
+                fileIncr(f, r)
     return;
 
 
 # process a single file path
 #
-def fileIncr(relPath, outQueue):
+def fileIncr(fileQueue, outQueue):
+    relPath = fileQueue.get()
     absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
     oldPath = os.path.abspath(os.path.join(args.snapshotPrevious, relPath))
 
@@ -330,35 +393,14 @@ def fileIncr(relPath, outQueue):
         else:    
             outQueue.put(("added", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
             cargoEntry(relPath, outQueue)
+    fileQueue.task_done()
     return;
 
 
 # process a single directory
 #
-def dirFull(relPath, dirQueue, fileQueue, outQueue):
-    absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
-
-    if not os.access(absPath, os.R_OK):
-        outQueue.put(("log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
-        outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
-    else:
-        directory_name, dirs, files = next(os.walk(absPath))
-
-        if len(dirs) > 0:
-            for childPath in dirs:
-                dirQueue.put(os.path.join(relPath, childPath))
-        else:
-            # must be leaf node lets record it
-            outQueue.put(("directory", "", "%s%s"%(relPath, args.snapshotEOL)))
-
-        for childPath in files:
-            fileQueue.put(os.path.join(relPath, childPath))
-    return;
-
-
-# process a single directory
-#
-def dirIncr(relPath, dirQueue, fileQueue, outQueue):
+def dirIncr(dirQueue, fileQueue, outQueue):
+    relPath = dirQueue.get()
     absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
     oldPath = os.path.abspath(os.path.join(args.snapshotPrevious, relPath))
 
@@ -387,6 +429,32 @@ def dirIncr(relPath, dirQueue, fileQueue, outQueue):
                 fileQueue.put(os.path.join(relPath, childPath))
         else:
             dirFull(d.get(), d, f, r)
+    dirQueue.task_done()
+    return;
+
+# prime Queues with paths to be processed
+#
+def primeQueues(fileQueue, dirQueue, outQueue):
+    if args.rework:
+        try:
+            for reworkFile in args.rework:
+                for line in open(reworkFile):
+                    relPath = line.rstrip('\n').rstrip('\r')
+                    absPath = os.path.join(args.snapshotCurrent, relPath)
+                    if os.path.isdir(absPath):
+                        dirQueue.put(relPath)
+                    elif os.path.isfile(absPath):
+                        fileQueue.put(relPath)
+                    else:
+                        outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
+                        outQueue.put(("log", "", "error reworking: %s%s"%(relPath, args.snapshotEOL)))
+        except ValueError:
+            # Time to tell all the threads to bail out
+            terminateThreads = True
+            sys.stderr.write("Cannot read list of files to ingest from %s (error: %s)\n"%(args.rework, ValueError))
+            sys.exit(-1)
+    else:
+        dirQueue.put(".")
     return;
 
 
@@ -434,29 +502,17 @@ if __name__ == '__main__':
 
         # setup the pool of path workers
         for i in range(args.threads):
-            pathWorker = Thread(target=snapshot, args=(i, fileQueue, dirQueue, resultsQueue))
+            if args.mode == 'full':
+                pathWorker = Thread(target=snapshotFull, args=(i, fileQueue, dirQueue, resultsQueue))
+            else:
+                pathWorker = Thread(target=snapshotIncr, args=(i, fileQueue, dirQueue, resultsQueue))
 
             pathWorker.setDaemon(True)
             pathWorker.start()
 
         # now the worker threads are processing lets feed the fileQueue, this will block if the 
         # rework file is larger than the queue.
-        if args.rework:
-            try:
-                for reworkFile in args.rework:
-                    for line in open(reworkFile):
-                        reworkPath = line.rstrip('\n').rstrip('\r')
-                        if os.path.isdir(reworkPath):
-                            dirQueue.put(reworkPath)
-                        else:
-                            fileQueue.put(reworkPath)
-            except ValueError:
-                # Time to tell all the threads to bail out
-                terminateThreads = True
-                sys.stderr.write("Cannot read list of files to ingest from %s (error: %s)\n"%(args.rework, ValueError))
-                sys.exit(-1)
-        else:
-            dirQueue.put(".")
+        primeQueues(fileQueue, dirQueue, resultsQueue)
 
 
         if args.debug:
