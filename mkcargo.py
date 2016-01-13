@@ -24,8 +24,8 @@ queueParams = {'max' : 10000, 'highWater' : 9000, 'lowWater' : 100}
 
 
 validFiles = ["log", "failed", "added", "modified", "unchanged", "symlink", "directory", "config", "cargo", "removed", "queue.debug"]
-moveFiles = ["log", "failed", "config", "queue.debug"]
-copyFiles = ["added", "modified", "unchanged", "symlink", "directory", "cargo", "removed", "snapshot.csv", "ingest.csv", "cargo.csv"]
+preserveFiles = ["log", "failed", "config", "queue.debug"]
+appendFiles = ["added", "modified", "unchanged", "symlink", "directory", "removed", "snapshot.csv", "ingest.csv", "cargo.csv"]
 includeStats = {'snapshot' : ['added', 'modified', 'unchanged'], 'ingest' : ['added', 'modified'], 'cargo': []}
 stats = {}
 statsFields = {}
@@ -50,19 +50,22 @@ parser.add_argument('-t', nargs='?', metavar='yyyymmddThhmmss', dest='timestamp'
 
 parser.add_argument('-o', nargs='?', metavar='output directory', dest='output', type=str, default="output", help='the directory under which to write the output. <output directory>/<name>/<timestamp>/<output files>.')
 
+parser.add_argument('--exists', dest='prepMode', choices=['clean', 'preserve', 'append'], default='preserve', help=argparse.SUPPRESS)
+parser.add_argument('--clean', action='store_true', help='if output directory exists delete its contents before process, by default previous output is preserved.')
+
 parser.add_argument('--debug', dest='debug', action='store_true', help=argparse.SUPPRESS)
 parser.add_argument('-boundaries', dest='statsBoundaries', default=os.path.join(os.path.dirname( os.path.realpath( __file__ )), 'boundaries.csv'), type=str, help=argparse.SUPPRESS)
-parser.add_argument('--nocargo', dest='cargo', action='store_false', help=argparse.SUPPRESS)
+parser.add_argument('--stats', dest='cargo', action='store_false', help='calculate stats (does not generate a cargo file)')
 parser.add_argument('-cargoEOL', dest='cargoEOL', default='\0', help=argparse.SUPPRESS)
 parser.add_argument('-cargoMax', dest='cargoMax', default='5TB', help=argparse.SUPPRESS)
 parser.add_argument('-defaultEOL', dest='snapshotEOL', default='\n', help=argparse.SUPPRESS)
 
-parser.add_argument('--rework', metavar='file', nargs='+', help='a file containing paths for which a cargo file needs to be generated')
-parser.add_argument('--stats', dest='stats', action='store_false', help='calculate stats (does not generate a cargo file)')
+parser.add_argument('--rework', metavar='file', nargs='+', help='a file containing paths for which a cargo file needs to be generated, generally based on a {failed} file from a previous run to be append to the stats and cargo')
 
 group = parser.add_mutually_exclusive_group(required=True)
-group.add_argument('--full', metavar='snapshots', dest='snapshots', nargs=1, help='generate a cargo file for the current snapshot')
-group.add_argument('--incr', metavar='snapshots', dest='snapshots', nargs=2, help='generates a cargo file for the difference between the first snapshot and the second')
+group.add_argument('--full', metavar='snapshots', dest='snapshots', nargs=1, default="", help='generate a cargo file for the current snapshot')
+group.add_argument('--incr', metavar='snapshots', dest='snapshots', nargs=2, default="", help='generates a cargo file for the difference between the first snapshot and the second')
+group.add_argument('--files', metavar='file', dest='file', nargs='+', default="", help='a file containing explicit paths for which a cargo file needs to be generated')
 
 
 # convert human readable version of a size in Bytes
@@ -81,39 +84,52 @@ def logConfig(config, r):
     r.put(("config", "", "%s%s"%(config, args.snapshotEOL)))
     return;
 
-# incase this job has previously been run lets move/copy things out of the way!
+
+# move some files to a new 'run' directory
+# copy some others but delete nothing!
 #
 def prepOutput():
     prefix = "run"
+    cargo_ext = ".md5"
+    moveList = []
+    copyList = []
+
+    # lets figure out what to do if there already files in the output directory
+    if args.rework:
+        args.prepMode = 'append'
+    if args.clean:
+        args.prepMode = 'clean'
 
     try:
-        if os.path.isdir(args.filebase):
-            root, dirlist, filelist = next(os.walk(args.filebase))
+        root, dirlist, filelist = next(os.walk(args.filebase))
 
+        if args.prepMode == 'clean':
+            for file in filelist:
+                os.remove(os.path.join(args.filebase, file))
+            for dir in dirlist:
+                shutil.rmtree(os.path.join(args.filebase, dir))
+        else:
             # figure out how many times this has been run.
             numRuns = len(filter(lambda x: x.startswith(prefix), dirlist))
-            lastRun = os.path.join(args.filebase, "run%s"%str(numRuns+1).zfill(4))
+            lastRun = os.path.join(args.filebase, "%s%s"%(prefix,str(numRuns+1).zfill(4)))
             os.makedirs(lastRun)
-  
-            # if we are reworking then appending to the various metadata files makes sense otherwise
-            # move them out of the way and we need to rerun from scratch.
-            if args.rework:
-                for file in set(filelist).intersection(copyFiles):
-                    shutil.copy2(os.path.join(args.filebase, file), lastRun)
-            else:
-                for file in set(filelist).intersection(copyFiles):
-                    shutil.move(os.path.join(args.filebase, file), lastRun)
-     
-            for file in set(filelist).intersection(moveFiles):
-                shutil.move(os.path.join(args.filebase, file), lastRun)
-        else:
-            os.makedirs(args.filebase)
 
+            if args.prepMode == 'append':
+                copyList  = list(set(filelist).intersection(appendFiles))
+            else:
+                moveList  = list(set(filelist).intersection(appendFiles))
+            moveList += list(set(filelist).intersection(preserveFiles))
+            moveList += filter(lambda x: x.endswith(cargo_ext), filelist)
+
+            for file in moveList:
+                shutil.move(os.path.join(args.filebase, file), lastRun)
+            for file in copyList:
+                shutil.copy2(os.path.join(args.filebase, file), lastRun)
     except ValueError:
         sys.stderr.write("Can't archive previous run: %s)\n"%(file, ValueError))
         sys.exit(-1)
-        
     return;
+
 
 def loadBoundaries(file):
     boundaries = []
@@ -145,7 +161,7 @@ def prepStats():
     # load stats boundaries
     boundaries, fields = loadBoundaries( args.statsBoundaries )
 
-    if os.path.isfile(os.path.join(args.filebase, "stats_full.csv")):
+    if args.rework:
         stats = loadStats(fields)
     else:
         stats = initStats(fields)
@@ -153,9 +169,12 @@ def prepStats():
 
 
 def loadStats(fields):
+    cargoCount = 0
+
     # imports stats and boundaries, only relevant for 'rework' mode
     try:
-        file = os.path.join(args.filebase,'stats_full.csv')
+        # First load in the stats for the snapshot (so far)
+        file = os.path.join(args.filebase,'snapshot.csv')
         with open(file) as csvfile:
             statsBoundaries = csv.DictReader(csvfile)
             for row in statsBoundaries:
@@ -165,6 +184,31 @@ def loadStats(fields):
                         stats[row['Category']][field] = row[field]
                     else:
                         stats[row['Category']][field] = int(row[field])
+
+        # First load in the stats for the cargo files (so far)
+        cargoCount += 1
+
+        file = os.path.join(args.filebase,'cargo.csv')
+        with open(file) as csvfile:
+            statsBoundaries = csv.DictReader(csvfile)
+            # skip the header row, as this was created above
+            next(statsBoundaries)
+            for row in statsBoundaries:
+                stats[row['Category']] = {}
+                cargoCount += 1
+                for field in fields:
+                    if field == 'Category':
+                        includeStats['cargo'].append(row[field])
+                        stats[row['Category']][field] = row[field]
+                    else:
+                        stats[row['Category']][field] = int(row[field])
+        # [TO DO]
+
+        # even if we are reworking failed files, we'll start with a new cargo file
+        stats['cargo'] = {}
+        stats['cargo']['Vol'] = 0
+        stats['cargo']['Num'] = cargoCount
+
     except ValueError:
         sys.stderr.write("Can't import stats to file %s (error: %s)\n"%(file, ValueError))
         exit(-1)
@@ -212,7 +256,10 @@ def updateStats(file, size):
             #initialise new stats line
             stats[file] = {}
             for field in statsFields:
-                stats[file][field] = 0
+                if field == 'Category':
+                    stats[file]['Category'] = file
+                else:  
+                    stats[file][field] = 0
             filePath = os.path.join(args.filebase, filename)
 
     else:
@@ -300,7 +347,10 @@ def cargoEntry(path, queue):
         blocksize=65536
 
         try:
-            absPath = os.path.abspath(os.path.join(args.snapshotCurrent, path))
+            if args.file:
+                absPath = path
+            else:
+                absPath = os.path.abspath(os.path.join(args.snapshotCurrent, path))
 
             # the following means of calculating an MD5 checksum for a file
             # is based on code in https://github.com/joswr1ght/md5deep/blob/master/md5deep.py
@@ -462,22 +512,99 @@ def dirIncr(dirQueue, fileQueue, outQueue):
     dirQueue.task_done()
     return;
 
+
+# pathWorker used by threads to process a Full snapshot of the file tree
+#
+def snapshotExplicit(i, f, d, r):
+    lowWater = queueParams['lowWater']
+
+    while not terminateThreads:
+        if f.qsize() > lowWater:
+            fileExplicit(f, r)
+        else:
+            if not d.empty():
+                dirExplicit(d, f, r)
+            elif f.empty():
+                time.sleep(1)
+            else:
+                fileExplicit(f, r)
+    return;
+
+
+# process a single file path
+#
+def fileExplicit(fileQueue, outQueue):
+    absPath = fileQueue.get()
+
+    if not os.path.exists(absPath):
+        outQueue.put(("log", "", "Does not exist; %s%s"%(absPath, args.snapshotEOL)))
+        outQueue.put(("failed", "", "%s%s"%(absPath, args.snapshotEOL)))
+    elif not os.access(absPath, os.R_OK):
+        outQueue.put(("log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
+        outQueue.put(("failed", "", "%s%s"%(absPath, args.snapshotEOL)))
+    else:
+        if (not args.followSymlink) and os.path.islink(absPath):
+            outQueue.put(("symlink", "", "%s %s%s"%(absPath, os.path.realpath(absPath), args.snapshotEOL)))
+        else:
+            outQueue.put(("added", os.path.getsize(absPath), "%s%s"%(absPath, args.snapshotEOL)))
+            cargoEntry(absPath, outQueue)
+    fileQueue.task_done()
+    return;
+
+
+# process a single directory
+#
+def dirExplicit(dirQueue, fileQueue, outQueue):
+    absPath = dirQueue.get()
+
+    if not os.path.exists(absPath):
+        outQueue.put(("log", "", "Does not exist; %s%s"%(absPath, args.snapshotEOL)))
+        outQueue.put(("failed", "", "%s%s"%(absPath, args.snapshotEOL)))
+    elif not os.access(absPath, os.R_OK):
+        outQueue.put(("log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
+        outQueue.put(("failed", "", "%s%s"%(absPath, args.snapshotEOL)))
+    else:
+        directory_name, dirs, files = next(os.walk(absPath))
+
+        if len(dirs) > 0:
+            for childPath in dirs:
+                dirQueue.put(os.path.join(absPath, childPath))
+        else:
+            # must be leaf node lets record it
+            outQueue.put(("directory", "", "%s%s"%(absPath, args.snapshotEOL)))
+
+        for childPath in files:
+            fileQueue.put(os.path.join(absPath, childPath))
+    dirQueue.task_done()
+    return;
+
+
 # prime Queues with paths to be processed
 #
 def primeQueues(fileQueue, dirQueue, outQueue):
+
+    fileList =[]
+
     if args.rework:
+        fileList += args.rework
+    if args.file:
+        fileList += args.file
+    if len(fileList):
         try:
-            for reworkFile in args.rework:
-                for line in open(reworkFile):
+            for pathFile in fileList:
+                for line in open(pathFile):
                     relPath = line.rstrip('\n').rstrip('\r')
-                    absPath = os.path.join(args.snapshotCurrent, relPath)
+                    if args.file:
+                        absPath = relPath
+                    else:
+                        absPath = os.path.join(args.snapshotCurrent, relPath)
                     if os.path.isdir(absPath):
                         dirQueue.put(relPath)
                     elif os.path.isfile(absPath):
                         fileQueue.put(relPath)
                     else:
                         outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
-                        outQueue.put(("log", "", "error reworking: %s%s"%(relPath, args.snapshotEOL)))
+                        outQueue.put(("log", "", "invalid path: %s%s"%(relPath, args.snapshotEOL)))
         except ValueError:
             # Time to tell all the threads to bail out
             terminateThreads = True
@@ -494,7 +621,9 @@ if __name__ == '__main__':
     args.cargoMaxBytes = toBytes(args.cargoMax)
 
     try:
-        if len(args.snapshots) == 1:
+        if len(args.snapshots) == 0:
+            args.mode = 'explicit'
+        elif len(args.snapshots) == 1:
             args.snapshotCurrent = args.snapshots[0]
             args.mode = 'full'
         else:
@@ -529,14 +658,18 @@ if __name__ == '__main__':
         resultsWorker.setDaemon(True)
         resultsWorker.start()
         
-        args.cargo = getattr(args, 'stats')
-
         # setup the pool of path workers
         for i in range(args.threads):
             if args.mode == 'full':
                 pathWorker = Thread(target=snapshotFull, args=(i, fileQueue, dirQueue, resultsQueue))
-            else:
+            elif args.mode == 'incr':
                 pathWorker = Thread(target=snapshotIncr, args=(i, fileQueue, dirQueue, resultsQueue))
+            elif args.mode == 'explicit':
+                pathWorker = Thread(target=snapshotExplicit, args=(i, fileQueue, dirQueue, resultsQueue))
+            else:
+                terminateThreads = True
+                sys.stderr.write("unrecognised mode! abandon excution.\n")
+                sys.exit(-1)
 
             pathWorker.setDaemon(True)
             pathWorker.start()
