@@ -22,12 +22,21 @@ import shutil
 # To stop the queue from consuming all the RAM available
 queueParams = {'max' : 10000, 'highWater' : 9000, 'lowWater' : 100}
 
+
 validFiles = ["log", "failed", "added", "modified", "unchanged", "symlink", "directory", "config", "cargo", "removed", "queue.debug"]
 moveFiles = ["log", "failed", "config", "queue.debug"]
-copyFiles = ["added", "modified", "unchanged", "symlink", "directory", "cargo", "removed", "stats_full.csv", "stats_incr.csv"]
-includeStats = {'full' : ['added', 'modified', 'unchanged'], 'incr' : ['added', 'modified']}
+copyFiles = ["added", "modified", "unchanged", "symlink", "directory", "cargo", "removed", "snapshot.csv", "ingest.csv", "cargo.csv"]
+includeStats = {'snapshot' : ['added', 'modified', 'unchanged'], 'ingest' : ['added', 'modified'], 'cargo': []}
 stats = {}
 statsFields = {}
+
+def toBytes(humanBytes):
+    # convert human readable to '0's
+    byteUnits = {'KB' : '000', 'MB' : '000000', 'GB' : '000000000', 'TB' :'000000000000', 'PB' : '000000000000000'}
+
+    humanBytes = humanBytes.upper()
+    humanBytes = humanBytes[:-2] + byteUnits.get(humanBytes[-2:])
+    return int(humanBytes);
 
 parser = argparse.ArgumentParser(description='Analysis a filesystem and create a cargo file to drive an ingest job.')
 
@@ -45,6 +54,7 @@ parser.add_argument('--debug', dest='debug', action='store_true', help=argparse.
 parser.add_argument('-boundaries', dest='statsBoundaries', default=os.path.join(os.path.dirname( os.path.realpath( __file__ )), 'boundaries.csv'), type=str, help=argparse.SUPPRESS)
 parser.add_argument('--nocargo', dest='cargo', action='store_false', help=argparse.SUPPRESS)
 parser.add_argument('-cargoEOL', dest='cargoEOL', default='\0', help=argparse.SUPPRESS)
+parser.add_argument('-cargoMax', dest='cargoMax', default='5TB', help=argparse.SUPPRESS)
 parser.add_argument('-defaultEOL', dest='snapshotEOL', default='\n', help=argparse.SUPPRESS)
 
 parser.add_argument('--rework', metavar='file', nargs='+', help='a file containing paths for which a cargo file needs to be generated')
@@ -55,7 +65,18 @@ group.add_argument('--full', metavar='snapshots', dest='snapshots', nargs=1, hel
 group.add_argument('--incr', metavar='snapshots', dest='snapshots', nargs=2, help='generates a cargo file for the difference between the first snapshot and the second')
 
 
+# convert human readable version of a size in Bytes
+#
+def toBytes(humanBytes):
+    # convert human readable to '0's
+    byteUnits = {'KB' : '000', 'MB' : '000000', 'GB' : '000000000', 'TB' :'000000000000', 'PB' : '000000000000000'}
 
+    humanBytes = humanBytes.upper()
+    humanBytes = humanBytes[:-2] + byteUnits.get(humanBytes[-2:])
+    return int(humanBytes);
+
+# log current config to a file
+#
 def logConfig(config, r):
     r.put(("config", "", "%s%s"%(config, args.snapshotEOL)))
     return;
@@ -153,18 +174,49 @@ def loadStats(fields):
 def initStats(fields):
     # imports boundaries and initialise stats
 
-    for category in includeStats['full']:
+    for category in includeStats['snapshot']:
         stats[category] = {}
         for field in fields:
             if field == 'Category':
                 stats[category]['Category'] = category
             else:   
                 stats[category][field] = 0
+    stats['cargo'] = {}
+    stats['cargo']['Vol'] = 0
+    stats['cargo']['Num'] = 0
+
     return stats;
 
 
-def updateStats(file, bytes):
+def updateStats(file, size):
+    newFile = False
     global stats 
+    global includeStats
+    filePath = ""
+    bytes = int(size)
+
+    if file == "cargo":
+        if (stats[file]['Vol'] + bytes) > args.cargoMaxBytes:
+            stats[file]['Num'] += 1 
+            stats[file]['Vol'] = bytes
+            newFile = True
+        else:
+            stats[file]['Vol'] += bytes
+
+        filename = args.name + "-" +  args.timestamp + "-" + str(stats[file]['Num']).zfill(4) + ".md5"
+        file = file + str(stats[file]['Num']).zfill(4)
+        if file not in includeStats['cargo']:
+            #add cargo file to list
+            includeStats['cargo'].append(file)
+
+            #initialise new stats line
+            stats[file] = {}
+            for field in statsFields:
+                stats[file][field] = 0
+            filePath = os.path.join(args.filebase, filename)
+
+    else:
+        filePath = os.path.join(args.filebase, file)
 
     for boundary in statsBoundaries:
         name, lower, upper = boundary
@@ -172,12 +224,14 @@ def updateStats(file, bytes):
             stats[file]['count '+name] += 1
             stats[file]['bytes '+name] += bytes
 
+    return newFile, filePath;
+
 
 def exportStats():
     # exports stats based on categories listed in includeStats & includeStats 
     try:
         for statSet in includeStats:
-            file = os.path.join(args.filebase,'stats_'+statSet+'.csv')
+            file = os.path.join(args.filebase,statSet+'.csv')
             with open(file, "wb") as csvfile:
                 writer = csv.DictWriter(csvfile, fieldnames=statsFields)
                 #writer.writeheader()
@@ -196,22 +250,37 @@ def exportStats():
 # than of this type of thread running.
 #
 def outputResult(i, files, q):
+    otherFiles = ['cargo']
     while True:
+        changeFile = False
+        filePath = ""
         file, bytes, message = q.get()
-
-        # update stats for this file
-        if file in list( set(includeStats['full']) | set(includeStats['incr']) ):
-            updateStats(file, bytes)
 
         if file not in validFiles:
             sys.stderr.write("invalid output file'%s'"%file)
             sys.exit(-1)
-        elif not file in files:
+
+        # update stats for this file
+        if file in list( set(otherFiles) | set(includeStats['snapshot']) | set(includeStats['ingest']) ):
+            changeFile, filePath = updateStats(file, bytes)
+        else:
+            filePath = os.path.join(args.filebase,file)
+
+        if changeFile and (file in files):
+           try:
+               (files[file]).close()
+               files[file] = open(filePath, "a", 0)
+           except ValueError:
+                sys.stderr.write("can't open %s"%file)
+                sys.exit(-1)
+
+        if not file in files:
             try:
-                files[file] = open(os.path.join(args.filebase,file), "a", 0)
+                files[file] = open(filePath, "a", 0)
             except ValueError:
                 sys.stderr.write("can't open %s"%file)
                 sys.exit(-1)
+
 
         # write out the message to the end of the file
         try:
@@ -231,8 +300,6 @@ def cargoEntry(path, queue):
         blocksize=65536
 
         try:
-            #path = path.replace("\r","")
-            #path = path.replace("\n","")
             absPath = os.path.abspath(os.path.join(args.snapshotCurrent, path))
 
             # the following means of calculating an MD5 checksum for a file
@@ -243,7 +310,7 @@ def cargoEntry(path, queue):
                     hash.update(block)
 
             hash = hash.hexdigest().replace(" ","")
-            queue.put(("cargo", "", "%s  %s%s"%(hash, absPath, args.cargoEOL)))
+            queue.put(("cargo", os.path.getsize(absPath), "%s  %s%s"%(hash, absPath, args.cargoEOL)))
 
         except IOError as e:
             queue.put(("log", "", "%s %s%s"%(e, absPath, args.snapshotEOL)))
@@ -251,43 +318,6 @@ def cargoEntry(path, queue):
             pass
     return;
 
-
-# pathWorker used by threads to process a Full/Incr snapshot of the file tree
-#
-def snapshot(i, f, d, r):
-    lowWater = queueParams['lowWater']
-    
-    while not terminateThreads:
-        action = 'wait'
-
-        if f.qsize() > lowWater:
-            action = 'file'
-        else:
-            if not d.empty():
-                action = 'directory'
-            elif f.empty():
-                action = 'wait'
-	    else:
-                action = 'file'
-
-        if args.debug:
-            r.put(("log", "", "%s - %s%s"%(current_thread().getName(), action, args.snapshotEOL)))
-
-        if action == 'directory':
-            if args.mode == 'incr':
-                dirIncr(d.get(), d, f, r)
-            else:
-                dirFull(d.get(), d, f, r)
-            d.task_done()
-        elif action == 'file':
-            if args.mode == 'incr':
-                fileIncr(f.get(), r)
-            else:
-                fileFull(f.get(), r)
-            f.task_done()
-        else:
-	    time.sleep(1)
-    return;
 
 # pathWorker used by threads to process a Full snapshot of the file tree
 #
@@ -416,7 +446,7 @@ def dirIncr(dirQueue, fileQueue, outQueue):
             oldDir_name, oldDirs, oldFiles = next(os.walk(oldPath))
             
             for removed in (set(oldDirs).difference(newDirs) | set(oldFiles).difference(newFiles)):
-                outQueue.put(("removed", "", "%s%s"%(os.path.join(relPath, removed), args.snapshotEOL)))
+                outQueue.put(("removed", os.path.getsize(oldPath), "%s%s"%(os.path.join(relPath, removed), args.snapshotEOL)))
 
             if len(newDirs) > 0:
                 for childPath in newDirs:
@@ -461,6 +491,7 @@ def primeQueues(fileQueue, dirQueue, outQueue):
 if __name__ == '__main__':
     global args
     args = parser.parse_args()
+    args.cargoMaxBytes = toBytes(args.cargoMax)
 
     try:
         if len(args.snapshots) == 1:
