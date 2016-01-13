@@ -58,6 +58,10 @@ parser.add_argument('-boundaries', dest='statsBoundaries', default=os.path.join(
 parser.add_argument('--stats', dest='cargo', action='store_false', help='calculate stats (does not generate a cargo file)')
 parser.add_argument('-cargoEOL', dest='cargoEOL', default='\0', help=argparse.SUPPRESS)
 parser.add_argument('-cargoMax', dest='cargoMax', default='5TB', help=argparse.SUPPRESS)
+parser.add_argument('-cargoPad', dest='cargoPad', default=6, help=argparse.SUPPRESS)
+parser.add_argument('-cargoExt', dest='cargoExt', default='.md5', help=argparse.SUPPRESS)
+parser.add_argument('-lastRunPad', default=4, help=argparse.SUPPRESS)
+parser.add_argument('-lastRunPrefix', default='run', help=argparse.SUPPRESS)
 parser.add_argument('-defaultEOL', dest='snapshotEOL', default='\n', help=argparse.SUPPRESS)
 
 parser.add_argument('--rework', metavar='file', nargs='+', help='a file containing paths for which a cargo file needs to be generated, generally based on a {failed} file from a previous run to be append to the stats and cargo')
@@ -111,7 +115,7 @@ def prepOutput():
         else:
             # figure out how many times this has been run.
             numRuns = len(filter(lambda x: x.startswith(prefix), dirlist))
-            lastRun = os.path.join(args.filebase, "%s%s"%(prefix,str(numRuns+1).zfill(4)))
+            lastRun = os.path.join(args.filebase, "%s%s"%(args.lastRunPrefix,str(numRuns+1).zfill(args.lastRunPad)))
             os.makedirs(lastRun)
 
             if args.prepMode == 'append':
@@ -119,7 +123,7 @@ def prepOutput():
             else:
                 moveList  = list(set(filelist).intersection(appendFiles))
             moveList += list(set(filelist).intersection(preserveFiles))
-            moveList += filter(lambda x: x.endswith(cargo_ext), filelist)
+            moveList += filter(lambda x: x.endswith(args.cargoExt), filelist)
 
             for file in moveList:
                 shutil.move(os.path.join(args.filebase, file), lastRun)
@@ -247,8 +251,8 @@ def updateStats(file, size):
         else:
             stats[file]['Vol'] += bytes
 
-        filename = args.name + "-" +  args.timestamp + "-" + str(stats[file]['Num']).zfill(4) + ".md5"
-        file = file + str(stats[file]['Num']).zfill(4)
+        filename = args.name + "-" +  args.timestamp + "-" + str(stats[file]['Num']).zfill(args.cargoPad) + args.cargoExt
+        file = file + str(stats[file]['Num']).zfill(args.cargoPad)
         if file not in includeStats['cargo']:
             #add cargo file to list
             includeStats['cargo'].append(file)
