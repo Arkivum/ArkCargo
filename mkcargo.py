@@ -358,6 +358,8 @@ def cargoEntry(path, queue):
                 absPath = path
             else:
                 absPath = os.path.abspath(os.path.join(args.snapshotCurrent, path))
+            if args.debug:
+                queue.put(("debug.log", "", "cargoEntry (%s) - %s%s"%(current_thread().getName(), absPath, args.snapshotEOL)))
 
             # the following means of calculating an MD5 checksum for a file
             # is based on code in https://github.com/joswr1ght/md5deep/blob/master/md5deep.py
@@ -388,6 +390,8 @@ def snapshotFull(i, f, d, r):
             if not d.empty():
                 dirFull(d, f, r)
             elif f.empty():
+                if args.debug:
+                    r.put(("debug.log", "", "Idle (%s)%s"%(current_thread().getName(), args.snapshotEOL)))
 	        time.sleep(1)
             else:
                 fileFull(f, r)
@@ -401,9 +405,12 @@ def fileFull(fileQueue, outQueue):
     absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
 
     if args.debug:
-        outQueue.put(("debug.log", "", "fileFull - %s%s"%(absPath, args.snapshotEOL)))
+        outQueue.put(("debug.log", "", "fileFull (%s)- %s%s"%(current_thread().getName(), absPath, args.snapshotEOL)))
 
     if not os.access(absPath, os.R_OK):
+        if args.debug:
+            sys.stderr.write("Permission Denied: %s\n"%absPath)
+
         outQueue.put(("error.log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
         outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
     else:
@@ -422,9 +429,12 @@ def dirFull(dirQueue, fileQueue, outQueue):
     absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
 
     if args.debug:
-        outQueue.put(("debug.log", "", "dirfull - %s%s"%(absPath, args.snapshotEOL)))
+        outQueue.put(("debug.log", "", "dirfull (%s)- %s%s"%(current_thread().getName(), absPath, args.snapshotEOL)))
 
     if not os.access(absPath, os.R_OK):
+        if args.debug:
+            sys.stderr.write("Permission Denied: %s\n"%absPath)
+        
         outQueue.put(("error.log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
         outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
     else:
@@ -433,12 +443,16 @@ def dirFull(dirQueue, fileQueue, outQueue):
         if len(dirs) > 0:
             for childPath in dirs:
                 dirQueue.put(os.path.join(relPath, childPath))
+                if args.debug:
+                    outQueue.put(("debug.log", "", "dirQueue.put (%s)- %s%s"%(current_thread().getName(), os.path.join(relPath, childPath), args.snapshotEOL)))
         else:
             # must be leaf node lets record it
             outQueue.put(("directory", "", "%s%s"%(relPath, args.snapshotEOL)))
 
         for childPath in files:
             fileQueue.put(os.path.join(relPath, childPath))
+            if args.debug:
+                outQueue.put(("debug.log", "", "fileQueue.put (%s)- %s%s"%(current_thread().getName(), os.path.join(relPath, childPath), args.snapshotEOL)))
     dirQueue.task_done()
     return;
 
@@ -455,6 +469,8 @@ def snapshotIncr(i, f, d, r):
             if not d.empty():
                 dirIncr(d, f, r)
             elif f.empty():
+                if args.debug:
+                    r.put(("debug.log", "", "Idle (%s)%s"%(current_thread().getName(), args.snapshotEOL)))
                 time.sleep(1)
             else:
                 fileIncr(f, r)
@@ -469,7 +485,7 @@ def fileIncr(fileQueue, outQueue):
     oldPath = os.path.abspath(os.path.join(args.snapshotPrevious, relPath))
 
     if args.debug:
-        outQueue.put(("debug.log", "", "fileIncr - %s%s"%(absPath, args.snapshotEOL)))
+        outQueue.put(("debug.log", "", "fileIncr (%s)- %s%s"%(current_thread().getName(), absPath, args.snapshotEOL)))
 
     if not os.access(absPath, os.R_OK):
         outQueue.put(("error.log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
@@ -501,7 +517,7 @@ def dirIncr(dirQueue, fileQueue, outQueue):
     oldPath = os.path.abspath(os.path.join(args.snapshotPrevious, relPath))
 
     if args.debug:
-        outQueue.put(("debug.log", "", "dirIncr - %s%s"%(absPath, args.snapshotEOL)))
+        outQueue.put(("debug.log", "", "dirIncr (%s)- %s%s"%(current_thread().getName(), absPath, args.snapshotEOL)))
 
     if not os.access(absPath, os.R_OK):
         outQueue.put(("error.log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
@@ -520,12 +536,16 @@ def dirIncr(dirQueue, fileQueue, outQueue):
             if len(newDirs) > 0:
                 for childPath in newDirs:
                     dirQueue.put(os.path.join(relPath, childPath))
+                    if args.debug:
+                        outQueue.put(("debug.log", "", "dirQueue.put (%s)- %s%s"%(current_thread().getName(), os.path.join(relPath, childPath), args.snapshotEOL)))
             else:
                 # must be leaf node lets record it
                 outQueue.put(("directory", "", "%s%s"%(relPath, args.snapshotEOL)))
 
             for childPath in newFiles:
                 fileQueue.put(os.path.join(relPath, childPath))
+                if args.debug:
+                    outQueue.put(("debug.log", "", "fileQueue.put (%s)- %s%s"%(current_thread().getName(), os.path.join(relPath, childPath), args.snapshotEOL)))
         else:
             dirFull(d.get(), d, f, r)
     dirQueue.task_done()
@@ -544,6 +564,8 @@ def snapshotExplicit(i, f, d, r):
             if not d.empty():
                 dirExplicit(d, f, r)
             elif f.empty():
+                if args.debug:
+                    r.put(("debug.log", "", "Idle (%s)%s"%(current_thread().getName(), args.snapshotEOL)))
                 time.sleep(1)
             else:
                 fileExplicit(f, r)
@@ -556,7 +578,7 @@ def fileExplicit(fileQueue, outQueue):
     absPath = fileQueue.get()
 
     if args.debug:
-        outQueue.put(("debug.log", "", "fileExplicit - %s%s"%(absPath, args.snapshotEOL)))
+        outQueue.put(("debug.log", "", "fileExplicit (%s)- %s%s"%(current_thread().getName(), absPath, args.snapshotEOL)))
 
     if not os.path.exists(absPath):
         outQueue.put(("error.log", "", "Does not exist; %s%s"%(absPath, args.snapshotEOL)))
@@ -580,7 +602,7 @@ def dirExplicit(dirQueue, fileQueue, outQueue):
     absPath = dirQueue.get()
 
     if args.debug:
-        outQueue.put(("debug.log", "", "dirExplicit - %s%s"%(absPath, args.snapshotEOL)))
+        outQueue.put(("debug.log", "", "dirExplicit (%s)- %s%s"%(current_thread().getName(), absPath, args.snapshotEOL)))
 
     if not os.path.exists(absPath):
         outQueue.put(("error.log", "", "Does not exist; %s%s"%(absPath, args.snapshotEOL)))
@@ -594,12 +616,16 @@ def dirExplicit(dirQueue, fileQueue, outQueue):
         if len(dirs) > 0:
             for childPath in dirs:
                 dirQueue.put(os.path.join(absPath, childPath))
+                if args.debug:
+                    outQueue.put(("debug.log", "", "dirQueue.put (%s)- %s%s"%(current_thread().getName(), os.path.join(absPath, childPath), args.snapshotEOL)))
         else:
             # must be leaf node lets record it
             outQueue.put(("directory", "", "%s%s"%(absPath, args.snapshotEOL)))
 
         for childPath in files:
             fileQueue.put(os.path.join(absPath, childPath))
+            if args.debug:
+                outQueue.put(("debug.log", "", "fileQueue.put (%s)- %s%s"%(current_thread().getName(), os.path.join(absPath, childPath), args.snapshotEOL)))
     dirQueue.task_done()
     return;
 
