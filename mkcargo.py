@@ -105,30 +105,33 @@ def prepOutput():
         args.prepMode = 'clean'
 
     try:
-        root, dirlist, filelist = next(os.walk(args.filebase))
+        if os.path.isdir(args.filebase):
+            root, dirlist, filelist = next(os.walk(args.filebase))
 
-        if args.prepMode == 'clean':
-            for file in filelist:
-                os.remove(os.path.join(args.filebase, file))
-            for dir in dirlist:
-                shutil.rmtree(os.path.join(args.filebase, dir))
-        else:
-            # figure out how many times this has been run.
-            numRuns = len(filter(lambda x: x.startswith(prefix), dirlist))
-            lastRun = os.path.join(args.filebase, "%s%s"%(args.lastRunPrefix,str(numRuns+1).zfill(args.lastRunPad)))
-            os.makedirs(lastRun)
-
-            if args.prepMode == 'append':
-                copyList  = list(set(filelist).intersection(appendFiles))
+            if args.prepMode == 'clean':
+                for file in filelist:
+                    os.remove(os.path.join(args.filebase, file))
+                for dir in dirlist:
+                    shutil.rmtree(os.path.join(args.filebase, dir))
             else:
-                moveList  = list(set(filelist).intersection(appendFiles))
-            moveList += list(set(filelist).intersection(preserveFiles))
-            moveList += filter(lambda x: x.endswith(args.cargoExt), filelist)
+                # figure out how many times this has been run.
+                numRuns = len(filter(lambda x: x.startswith(prefix), dirlist))
+                lastRun = os.path.join(args.filebase, "%s%s"%(args.lastRunPrefix,str(numRuns+1).zfill(args.lastRunPad)))
+                os.makedirs(lastRun)
 
-            for file in moveList:
-                shutil.move(os.path.join(args.filebase, file), lastRun)
-            for file in copyList:
-                shutil.copy2(os.path.join(args.filebase, file), lastRun)
+                if args.prepMode == 'append':
+                    copyList  = list(set(filelist).intersection(appendFiles))
+                else:
+                    moveList  = list(set(filelist).intersection(appendFiles))
+                moveList += list(set(filelist).intersection(preserveFiles))
+                moveList += filter(lambda x: x.endswith(args.cargoExt), filelist)
+
+                for file in moveList:
+                    shutil.move(os.path.join(args.filebase, file), lastRun)
+                for file in copyList:
+                    shutil.copy2(os.path.join(args.filebase, file), lastRun)
+        else:
+            os.makedirs(args.filebase)
     except ValueError:
         sys.stderr.write("Can't archive previous run: %s)\n"%(file, ValueError))
         sys.exit(-1)
