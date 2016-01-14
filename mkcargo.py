@@ -23,8 +23,8 @@ import shutil
 queueParams = {'max' : 10000, 'highWater' : 9000, 'lowWater' : 100}
 
 
-validFiles = ["log", "failed", "added", "modified", "unchanged", "symlink", "directory", "config", "cargo", "removed", "queue.debug"]
-preserveFiles = ["log", "failed", "config", "queue.debug"]
+validFiles = ["error.log", "debug.log", "failed", "added", "modified", "unchanged", "symlink", "directory", "config", "cargo", "removed", "queue.log"]
+preserveFiles = ["error.log", "debug.log", "failed", "config", "queue.log"]
 appendFiles = ["added", "modified", "unchanged", "symlink", "directory", "removed", "snapshot.csv", "ingest.csv", "cargo.csv"]
 includeStats = {'snapshot' : ['added', 'modified', 'unchanged'], 'ingest' : ['added', 'modified'], 'cargo': []}
 stats = {}
@@ -370,7 +370,7 @@ def cargoEntry(path, queue):
             queue.put(("cargo", os.path.getsize(absPath), "%s  %s%s"%(hash, absPath, args.cargoEOL)))
 
         except IOError as e:
-            queue.put(("log", "", "%s %s%s"%(e, absPath, args.snapshotEOL)))
+            queue.put(("error.log", "", "%s %s%s"%(e, absPath, args.snapshotEOL)))
             queue.put(("failed", "", "%s%s"%(path, args.snapshotEOL)))
             pass
     return;
@@ -400,8 +400,11 @@ def fileFull(fileQueue, outQueue):
     relPath = fileQueue.get()
     absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
 
+    if args.debug:
+        outQueue.put(("debug.log", "", "fileFull - %s%s"%(absPath, args.snapshotEOL)))
+
     if not os.access(absPath, os.R_OK):
-        outQueue.put(("log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
+        outQueue.put(("error.log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
         outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
     else:
         if (not args.followSymlink) and os.path.islink(absPath):
@@ -418,8 +421,11 @@ def dirFull(dirQueue, fileQueue, outQueue):
     relPath = dirQueue.get()
     absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
 
+    if args.debug:
+        outQueue.put(("debug.log", "", "dirfull - %s%s"%(absPath, args.snapshotEOL)))
+
     if not os.access(absPath, os.R_OK):
-        outQueue.put(("log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
+        outQueue.put(("error.log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
         outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
     else:
         directory_name, dirs, files = next(os.walk(absPath))
@@ -462,15 +468,18 @@ def fileIncr(fileQueue, outQueue):
     absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
     oldPath = os.path.abspath(os.path.join(args.snapshotPrevious, relPath))
 
+    if args.debug:
+        outQueue.put(("debug.log", "", "fileIncr - %s%s"%(absPath, args.snapshotEOL)))
+
     if not os.access(absPath, os.R_OK):
-        outQueue.put(("log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
+        outQueue.put(("error.log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
         outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
     elif (not args.followSymlink) and os.path.islink(absPath):
         outQueue.put(("symlink", "", "%s %s%s"%(relPath, os.path.realpath(absPath), args.snapshotEOL)))
     else:
         if os.path.isfile(oldPath):
             if not os.access(oldPath, os.R_OK):
-                outQueue.put(("log", "", "Permission Denied; %s%s"%(oldPath, args.snapshotEOL)))
+                outQueue.put(("error.log", "", "Permission Denied; %s%s"%(oldPath, args.snapshotEOL)))
                 outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
             elif filecmp.cmp(oldPath, absPath):
                 outQueue.put(("unchanged", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
@@ -491,11 +500,14 @@ def dirIncr(dirQueue, fileQueue, outQueue):
     absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
     oldPath = os.path.abspath(os.path.join(args.snapshotPrevious, relPath))
 
+    if args.debug:
+        outQueue.put(("debug.log", "", "dirIncr - %s%s"%(absPath, args.snapshotEOL)))
+
     if not os.access(absPath, os.R_OK):
-        outQueue.put(("log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
+        outQueue.put(("error.log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
         outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
     elif not os.access(oldPath, os.R_OK):
-        outQueue.put(("log", "", "Permission Denied; %s%s"%(oldPath, args.snapshotEOL)))
+        outQueue.put(("error.log", "", "Permission Denied; %s%s"%(oldPath, args.snapshotEOL)))
         outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
     else:    
         if os.path.isdir(oldPath):
@@ -543,11 +555,14 @@ def snapshotExplicit(i, f, d, r):
 def fileExplicit(fileQueue, outQueue):
     absPath = fileQueue.get()
 
+    if args.debug:
+        outQueue.put(("debug.log", "", "fileExplicit - %s%s"%(absPath, args.snapshotEOL)))
+
     if not os.path.exists(absPath):
-        outQueue.put(("log", "", "Does not exist; %s%s"%(absPath, args.snapshotEOL)))
+        outQueue.put(("error.log", "", "Does not exist; %s%s"%(absPath, args.snapshotEOL)))
         outQueue.put(("failed", "", "%s%s"%(absPath, args.snapshotEOL)))
     elif not os.access(absPath, os.R_OK):
-        outQueue.put(("log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
+        outQueue.put(("error.log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
         outQueue.put(("failed", "", "%s%s"%(absPath, args.snapshotEOL)))
     else:
         if (not args.followSymlink) and os.path.islink(absPath):
@@ -564,11 +579,14 @@ def fileExplicit(fileQueue, outQueue):
 def dirExplicit(dirQueue, fileQueue, outQueue):
     absPath = dirQueue.get()
 
+    if args.debug:
+        outQueue.put(("debug.log", "", "dirExplicit - %s%s"%(absPath, args.snapshotEOL)))
+
     if not os.path.exists(absPath):
-        outQueue.put(("log", "", "Does not exist; %s%s"%(absPath, args.snapshotEOL)))
+        outQueue.put(("error.log", "", "Does not exist; %s%s"%(absPath, args.snapshotEOL)))
         outQueue.put(("failed", "", "%s%s"%(absPath, args.snapshotEOL)))
     elif not os.access(absPath, os.R_OK):
-        outQueue.put(("log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
+        outQueue.put(("error.log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
         outQueue.put(("failed", "", "%s%s"%(absPath, args.snapshotEOL)))
     else:
         directory_name, dirs, files = next(os.walk(absPath))
@@ -605,20 +623,34 @@ def primeQueues(fileQueue, dirQueue, outQueue):
                         absPath = relPath
                     else:
                         absPath = os.path.join(args.snapshotCurrent, relPath)
+
+                    if args.debug:
+                        outQueue.put(("debug.log", "", "primeQueues - %s%s"%(absPath, args.snapshotEOL)))
+
                     if os.path.isdir(absPath):
                         dirQueue.put(relPath)
                     elif os.path.isfile(absPath):
                         fileQueue.put(relPath)
                     else:
                         outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
-                        outQueue.put(("log", "", "invalid path: %s%s"%(relPath, args.snapshotEOL)))
+                        outQueue.put(("error.log", "", "invalid path: %s%s"%(relPath, args.snapshotEOL)))
         except ValueError:
             # Time to tell all the threads to bail out
             terminateThreads = True
             sys.stderr.write("Cannot read list of files to ingest from %s (error: %s)\n"%(args.rework, ValueError))
             sys.exit(-1)
     else:
-        dirQueue.put(".")
+        relPath = "."
+        absPath = os.path.join(args.snapshotCurrent, relPath)
+
+        if args.debug:
+            outQueue.put(("debug.log", "", "primeQueues - %s%s"%(absPath, args.snapshotEOL)))
+
+        if os.path.isdir(absPath):
+            dirQueue.put(".")
+        else:
+            outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
+            outQueue.put(("error.log", "", "invalid path: %s%s"%(relPath, args.snapshotEOL)))
     return;
 
 
@@ -687,11 +719,11 @@ if __name__ == '__main__':
 
 
         if args.debug:
-            resultsQueue.put(("queue.debug", "", "\"max\", \"file\", \"dir\", \"results\"\n"))
+            resultsQueue.put(("queue.log", "", "\"max\", \"file\", \"dir\", \"results\"\n"))
         # lets just hang back and wait for the queues to empty
         while not terminateThreads:
             if args.debug:
-                resultsQueue.put(("queue.debug", "", "%s, %s, %s, %s\n"%(queueParams['max'], fileQueue.qsize(), dirQueue.qsize(), resultsQueue.qsize())))
+                resultsQueue.put(("queue.log", "", "%s, %s, %s, %s\n"%(queueParams['max'], fileQueue.qsize(), dirQueue.qsize(), resultsQueue.qsize())))
             time.sleep(.1)
             if fileQueue.empty() and dirQueue.empty():
                 fileQueue.join()
