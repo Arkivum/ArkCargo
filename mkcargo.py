@@ -125,6 +125,14 @@ def isSymlink(path, target):
     resultsQueue.put(("symlink", "", "%s %s%s"%(path, target, args.snapshotEOL)))
     return;
 
+def listDir(path):
+    fileList = []
+    dirList = []
+    listing = os.listdir(path)
+    dirList = filter(os.path.isdir, listing)
+    fileList = filter(os.path.isfile, listing)
+    return dirList, fileList;
+
 
 # log current config to a file
 #
@@ -150,7 +158,7 @@ def prepOutput():
 
     try:
         if os.path.isdir(args.filebase):
-            root, dirlist, filelist = next(os.walk(args.filebase))
+            dirlist, filelist = dirList(args.filebase)
 
             if args.prepMode == 'clean':
                 for file in filelist:
@@ -473,8 +481,8 @@ def dirFull(dirQueue, fileQueue):
         errorMsg("Permission Denied: %s"%absPath)
         failed(relPath)
     elif os.path.isdir(absPath):
-        debugMsg("dirfull (%s)- %s"%(current_thread().getName(), absPath))
-        directory_name, dirs, files = next(os.walk(absPath))
+        debugMsg("dirfull (%s) isDir-%s"%(current_thread().getName(), absPath))
+        dirs, files = listDir(absPath)
         debugMsg("childDirs %s  %s"%(relPath, dirs))
         debugMsg("childFiles %s %s"%(relPath, files))
 
@@ -563,12 +571,12 @@ def dirIncr(dirQueue, fileQueue):
         isFailed(relPath)
     elif os.path.isdir(absPath):
         debugMsg("dirIncr (%s)- %s"%(current_thread().getName(), absPath))
-        newDir_name, newDirs, newFiles = next(os.walk(absPath))
+        newDirs, newFiles = dirList(absPath)
         debugMsg("newChildDirs %s %s"%(relPath, newDirs))
         debugMsg("newChildFiles %s %s"%(relPath, newFiles))
 
         if os.path.isdir(oldPath):
-            oldDir_name, oldDirs, oldFiles = next(os.walk(oldPath))
+            oldDirs, oldFiles = dirList(oldPath)
             debugMsg("oldChildDirs %s %s"%(relPath, oldDirs))
             debugMsg("oldChildFiles %s %s"%(relPath, oldFiles))
             
@@ -650,7 +658,7 @@ def dirExplicit(dirQueue, fileQueue):
         errorMsg("Permission Denied: %s"%absPath)
         isFailed(absPath)
     elif os.path.isdir(absPath):
-        directory_name, dirs, files = next(os.walk(absPath))
+        dirs, files = dirList(absPath)
         debugMsg("dirs %s %s"%(absPath, dirs))
         debugMsg("files %s %s"%(absPath, files))
 
