@@ -32,11 +32,11 @@ statsFields = {}
 
 def toBytes(humanBytes):
     # convert human readable to '0's
-    byteUnits = {'KB' : '000', 'MB' : '000000', 'GB' : '000000000', 'TB' :'000000000000', 'PB' : '000000000000000'}
+    byteUnits = {'KB' : 1000, 'MB' : 1000000, 'GB' : 1000000000, 'TB' :1000000000000, 'PB' : 1000000000000000}
 
     humanBytes = humanBytes.upper()
-    humanBytes = humanBytes[:-2] + byteUnits.get(humanBytes[-2:])
-    return int(humanBytes);
+    bytes = int(humanBytes[:-2]) * byteUnits.get(humanBytes[-2:])
+    return bytes;
 
 parser = argparse.ArgumentParser(description='Analysis a filesystem and create a cargo file to drive an ingest job.')
 
@@ -82,10 +82,54 @@ def toBytes(humanBytes):
     humanBytes = humanBytes[:-2] + byteUnits.get(humanBytes[-2:])
     return int(humanBytes);
 
+def debugMsg(message):
+    if args.debug:
+        resultsQueue.put(("debug.log", "", message + args.snapshotEOL))
+    return;
+
+def errorMsg(message):
+    if args.debug:
+        resultsQueue.put(("error.log", "", message + args.snapshotEOL))
+    return;
+
+def queueMsg(message):
+    if args.debug:
+        resultsQueue.put(("queue.log", "", message + args.snapshotEOL))
+    return;
+
+def isDirectory(path):
+    resultsQueue.put(("directory", "", path + args.snapshotEOL))
+    return;
+
+def isFailed(path):
+    resultsQueue.put(("failed", "", path + args.snapshotEOL))
+    return;
+
+def isAdded(path, bytes):
+    resultsQueue.put(("added", bytes, path + args.snapshotEOL))
+    return;
+
+def isModified(path, bytes):
+    resultsQueue.put(("modified", bytes, path + args.snapshotEOL))
+    return;
+
+def isUnchanged(path, bytes):
+    resultsQueue.put(("unchanged", bytes, path + args.snapshotEOL))
+    return;
+
+def isRemoved(path, bytes):
+    resultsQueue.put(("removed", bytes, path + args.snapshotEOL))
+    return;
+
+def isSymlink(path, target):
+    resultsQueue.put(("symlink", "", "%s %s%s"%(path, target, args.snapshotEOL)))
+    return;
+
+
 # log current config to a file
 #
-def logConfig(config, r):
-    r.put(("config", "", "%s%s"%(config, args.snapshotEOL)))
+def logConfig():
+    resultsQueue.put(("config", "", "%s%s"%(args, args.snapshotEOL)))
     return;
 
 
@@ -348,7 +392,8 @@ def outputResult(i, files, q):
 
 # Calculate the MD5 sum of the file
 #
-def cargoEntry(path, queue):
+def cargoEntry(path):
+    global resultsQueue
     if args.cargo:        
         hash = hashlib.md5()
         blocksize=65536
@@ -358,8 +403,7 @@ def cargoEntry(path, queue):
                 absPath = path
             else:
                 absPath = os.path.abspath(os.path.join(args.snapshotCurrent, path))
-            if args.debug:
-                queue.put(("debug.log", "", "cargoEntry (%s) - %s%s"%(current_thread().getName(), absPath, args.snapshotEOL)))
+            debugMsg("cargoEntry (%s) - %s"%(current_thread().getName(), absPath))
 
             # the following means of calculating an MD5 checksum for a file
             # is based on code in https://github.com/joswr1ght/md5deep/blob/master/md5deep.py
@@ -369,270 +413,268 @@ def cargoEntry(path, queue):
                     hash.update(block)
 
             hash = hash.hexdigest().replace(" ","")
-            queue.put(("cargo", os.path.getsize(absPath), "%s  %s%s"%(hash, absPath, args.cargoEOL)))
+            resultsQueue.put(("cargo", os.path.getsize(absPath), "%s  %s%s"%(hash, absPath, args.cargoEOL)))
 
         except IOError as e:
-            queue.put(("error.log", "", "%s %s%s"%(e, absPath, args.snapshotEOL)))
-            queue.put(("failed", "", "%s%s"%(path, args.snapshotEOL)))
+            errorMsg("%s %s"%(e, absPath))
+            failed(path)
             pass
     return;
 
 
 # pathWorker used by threads to process a Full snapshot of the file tree
 #
-def snapshotFull(i, f, d, r):
+def snapshotFull(i, f, d):
     lowWater = queueParams['lowWater']
    
     while not terminateThreads:
         if f.qsize() > lowWater:
-            fileFull(f, r)
+            fileFull(f)
         else:
             if not d.empty():
-                dirFull(d, f, r)
+                dirFull(d, f)
             elif f.empty():
-                if args.debug:
-                    r.put(("debug.log", "", "Idle (%s)%s"%(current_thread().getName(), args.snapshotEOL)))
+                debugMsg("Idle (%s)"%current_thread().getName())
 	        time.sleep(1)
             else:
-                fileFull(f, r)
+                fileFull(f)
     return;
 
 
 # process a single file path 
 # 
-def fileFull(fileQueue, outQueue):
+def fileFull(fileQueue):
     relPath = fileQueue.get()
     absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
 
-    if args.debug:
-        outQueue.put(("debug.log", "", "fileFull (%s)- %s%s"%(current_thread().getName(), absPath, args.snapshotEOL)))
+    debugMsg("fileFull (%s)- %s"%(current_thread().getName(), relPath))
 
     if not os.access(absPath, os.R_OK):
-        if args.debug:
-            sys.stderr.write("Permission Denied: %s\n"%absPath)
-
-        outQueue.put(("error.log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
-        outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
+        errorMsg("Permission Denied: %s"%absPath)
+        failed(relPath)
     else:
         if (not args.followSymlink) and os.path.islink(absPath):
-            outQueue.put(("symlink", "", "%s %s%s"%(relPath, os.path.realpath(absPath), args.snapshotEOL)))
+            isSymlink(relPath, os.path.realpath(absPath))
         else:
-            outQueue.put(("added", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
-            cargoEntry(relPath, outQueue)
+            isAdded(relPath, os.path.getsize(absPath))
+            cargoEntry(relPath)
     fileQueue.task_done()
     return;
 
 # process a single directory
 #
-def dirFull(dirQueue, fileQueue, outQueue):
+def dirFull(dirQueue, fileQueue):
     relPath = dirQueue.get()
     absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
 
-    if args.debug:
-        outQueue.put(("debug.log", "", "dirfull (%s)- %s%s"%(current_thread().getName(), absPath, args.snapshotEOL)))
+    debugMsg("dirfull (%s)- %s"%(current_thread().getName(), relPath))
 
     if not os.access(absPath, os.R_OK):
-        if args.debug:
-            sys.stderr.write("Permission Denied: %s\n"%absPath)
-        
-        outQueue.put(("error.log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
-        outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
-    else:
+        errorMsg("Permission Denied: %s"%absPath)
+        failed(relPath)
+    elif os.path.isdir(absPath):
+        debugMsg("dirfull (%s)- %s"%(current_thread().getName(), absPath))
         directory_name, dirs, files = next(os.walk(absPath))
+        debugMsg("childDirs %s  %s"%(relPath, dirs))
+        debugMsg("childFiles %s %s"%(relPath, files))
 
         if len(dirs) > 0:
             for childPath in dirs:
                 dirQueue.put(os.path.join(relPath, childPath))
-                if args.debug:
-                    outQueue.put(("debug.log", "", "dirQueue.put (%s)- %s%s"%(current_thread().getName(), os.path.join(relPath, childPath), args.snapshotEOL)))
+                debugMsg("dirQueue.put (%s)- %s"%(current_thread().getName(), os.path.join(relPath, childPath)))
         else:
             # must be leaf node lets record it
-            outQueue.put(("directory", "", "%s%s"%(relPath, args.snapshotEOL)))
+            isDirectory(relPath)
 
         for childPath in files:
             fileQueue.put(os.path.join(relPath, childPath))
-            if args.debug:
-                outQueue.put(("debug.log", "", "fileQueue.put (%s)- %s%s"%(current_thread().getName(), os.path.join(relPath, childPath), args.snapshotEOL)))
+            debugMsg("fileQueue.put (%s)- %s"%(current_thread().getName(), os.path.join(relPath, childPath)))
+    else:
+        debugMsg("fileQueue.put (%s)- file in dirQueue %s"%(current_thread().getName(), relPath))
+        fileQueue.put(relPath)
+
     dirQueue.task_done()
     return;
 
 
 # pathWorker used by threads to process a Full snapshot of the file tree
 #
-def snapshotIncr(i, f, d, r):
+def snapshotIncr(i, f, d):
     lowWater = queueParams['lowWater']
   
     while not terminateThreads:
         if f.qsize() > lowWater:
-            fileIncr(f, r)
+            fileIncr(f)
         else:
             if not d.empty():
-                dirIncr(d, f, r)
+                dirIncr(d, f)
             elif f.empty():
-                if args.debug:
-                    r.put(("debug.log", "", "Idle (%s)%s"%(current_thread().getName(), args.snapshotEOL)))
+                debugMsg("Idle (%s)"%current_thread().getName())
                 time.sleep(1)
             else:
-                fileIncr(f, r)
+                fileIncr(f)
     return;
 
 
 # process a single file path
 #
-def fileIncr(fileQueue, outQueue):
+def fileIncr(fileQueue):
     relPath = fileQueue.get()
     absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
     oldPath = os.path.abspath(os.path.join(args.snapshotPrevious, relPath))
 
-    if args.debug:
-        outQueue.put(("debug.log", "", "fileIncr (%s)- %s%s"%(current_thread().getName(), absPath, args.snapshotEOL)))
+    debugMsg("fileIncr (%s)- %s"%(current_thread().getName(), absPath))
 
     if not os.access(absPath, os.R_OK):
-        outQueue.put(("error.log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
-        outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
+        errorMsg("Permission Denied; %s"%absPath)
+        failed(relPath)
     elif (not args.followSymlink) and os.path.islink(absPath):
-        outQueue.put(("symlink", "", "%s %s%s"%(relPath, os.path.realpath(absPath), args.snapshotEOL)))
+        isSymlink(relPath, os.path.realpath(absPath))
     else:
         if os.path.isfile(oldPath):
             if not os.access(oldPath, os.R_OK):
-                outQueue.put(("error.log", "", "Permission Denied; %s%s"%(oldPath, args.snapshotEOL)))
-                outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
+                errorMsg("Permission Denied; %s"%oldPath)
+                isFailed(relPath)
             elif filecmp.cmp(oldPath, absPath):
-                outQueue.put(("unchanged", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
+                isUnchanged(relPath, os.path.getsize(absPath))
             else:
-                outQueue.put(("modified", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
-                cargoEntry(relPath, outQueue)
+                isModified(relPath, os.path.getsize(absPath))
+                cargoEntry(relPath)
         else:    
-            outQueue.put(("added", os.path.getsize(absPath), "%s%s"%(relPath, args.snapshotEOL)))
-            cargoEntry(relPath, outQueue)
+            isAdded(relPath, os.path.getsize(absPath))
+            cargoEntry(relPath)
     fileQueue.task_done()
     return;
 
 
 # process a single directory
 #
-def dirIncr(dirQueue, fileQueue, outQueue):
+def dirIncr(dirQueue, fileQueue):
     relPath = dirQueue.get()
     absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
     oldPath = os.path.abspath(os.path.join(args.snapshotPrevious, relPath))
 
-    if args.debug:
-        outQueue.put(("debug.log", "", "dirIncr (%s)- %s%s"%(current_thread().getName(), absPath, args.snapshotEOL)))
-
+    debugMsg("dirIncr (%s)- %s"%(current_thread().getName(), relPath))
     if not os.access(absPath, os.R_OK):
-        outQueue.put(("error.log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
-        outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
+        errorMsg("Permission Denied; %s"%absPath)
+        isFailed(relPath)
     elif not os.access(oldPath, os.R_OK):
-        outQueue.put(("error.log", "", "Permission Denied; %s%s"%(oldPath, args.snapshotEOL)))
-        outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
-    else:    
+        errorMsg("Permission Denied; %s"%oldPath)
+        isFailed(relPath)
+    elif os.path.isdir(absPath):
+        debugMsg("dirIncr (%s)- %s"%(current_thread().getName(), absPath))
+        newDir_name, newDirs, newFiles = next(os.walk(absPath))
+        debugMsg("newChildDirs %s %s"%(relPath, newDirs))
+        debugMsg("newChildFiles %s %s"%(relPath, newFiles))
+
         if os.path.isdir(oldPath):
-            newDir_name, newDirs, newFiles = next(os.walk(absPath))
             oldDir_name, oldDirs, oldFiles = next(os.walk(oldPath))
+            debugMsg("oldChildDirs %s %s"%(relPath, oldDirs))
+            debugMsg("oldChildFiles %s %s"%(relPath, oldFiles))
             
-            for removed in (set(oldDirs).difference(newDirs) | set(oldFiles).difference(newFiles)):
-                outQueue.put(("removed", os.path.getsize(oldPath), "%s%s"%(os.path.join(relPath, removed), args.snapshotEOL)))
+            for removed in list(set(oldDirs).difference(newDirs) | set(oldFiles).difference(newFiles)):
+                isRemoved(os.path.join(relPath, removed), os.path.getsize(oldPath))
 
-            if len(newDirs) > 0:
-                for childPath in newDirs:
-                    dirQueue.put(os.path.join(relPath, childPath))
-                    if args.debug:
-                        outQueue.put(("debug.log", "", "dirQueue.put (%s)- %s%s"%(current_thread().getName(), os.path.join(relPath, childPath), args.snapshotEOL)))
-            else:
-                # must be leaf node lets record it
-                outQueue.put(("directory", "", "%s%s"%(relPath, args.snapshotEOL)))
-
-            for childPath in newFiles:
-                fileQueue.put(os.path.join(relPath, childPath))
-                if args.debug:
-                    outQueue.put(("debug.log", "", "fileQueue.put (%s)- %s%s"%(current_thread().getName(), os.path.join(relPath, childPath), args.snapshotEOL)))
+        if len(newDirs) > 0:
+            for childPath in newDirs:
+                dirQueue.put(os.path.join(relPath, childPath))
+                debugMsg("dirQueue.put (%s)- %s"%(current_thread().getName(), os.path.join(relPath, childPath)))
         else:
-            dirFull(d.get(), d, f, r)
+            # must be leaf node lets record it
+            isDirectory(relPath)
+
+        for childPath in newFiles:
+            fileQueue.put(os.path.join(relPath, childPath))
+            debugMsg("fileQueue.put (%s)- %s"%(current_thread().getName(), os.path.join(relPath, childPath)))
+    else:
+        debugMsg("fileQueue.put (%s)- file in dirQueue %s"%(current_thread().getName(), relPath))
+        fileQueue.put(relPath)
+    
     dirQueue.task_done()
     return;
 
 
 # pathWorker used by threads to process a Full snapshot of the file tree
 #
-def snapshotExplicit(i, f, d, r):
+def snapshotExplicit(i, f, d):
     lowWater = queueParams['lowWater']
 
     while not terminateThreads:
         if f.qsize() > lowWater:
-            fileExplicit(f, r)
+            fileExplicit(f)
         else:
             if not d.empty():
-                dirExplicit(d, f, r)
+                dirExplicit(d, f)
             elif f.empty():
-                if args.debug:
-                    r.put(("debug.log", "", "Idle (%s)%s"%(current_thread().getName(), args.snapshotEOL)))
+                debugMsg("Idle (%s)"%current_thread().getName())
                 time.sleep(1)
             else:
-                fileExplicit(f, r)
+                fileExplicit(f)
     return;
 
 
 # process a single file path
 #
-def fileExplicit(fileQueue, outQueue):
+def fileExplicit(fileQueue):
     absPath = fileQueue.get()
 
-    if args.debug:
-        outQueue.put(("debug.log", "", "fileExplicit (%s)- %s%s"%(current_thread().getName(), absPath, args.snapshotEOL)))
+    debugMsg("fileExplicit (%s)- %s"%(current_thread().getName(), absPath))
 
     if not os.path.exists(absPath):
-        outQueue.put(("error.log", "", "Does not exist; %s%s"%(absPath, args.snapshotEOL)))
-        outQueue.put(("failed", "", "%s%s"%(absPath, args.snapshotEOL)))
+        errorMsg("Does not exist; %s"%absPath)
+        isFailed(absPath)
     elif not os.access(absPath, os.R_OK):
-        outQueue.put(("error.log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
-        outQueue.put(("failed", "", "%s%s"%(absPath, args.snapshotEOL)))
+        errorMsg("Permission Denied; %s"%absPath)
+        isFailed(absPath)
     else:
         if (not args.followSymlink) and os.path.islink(absPath):
-            outQueue.put(("symlink", "", "%s %s%s"%(absPath, os.path.realpath(absPath), args.snapshotEOL)))
+            isSymlink(absPath, os.path.realpath(absPath))
         else:
-            outQueue.put(("added", os.path.getsize(absPath), "%s%s"%(absPath, args.snapshotEOL)))
-            cargoEntry(absPath, outQueue)
+            isAdded(absPath, os.path.getsize(absPath))
+            cargoEntry(absPath)
     fileQueue.task_done()
     return;
 
 
 # process a single directory
 #
-def dirExplicit(dirQueue, fileQueue, outQueue):
+def dirExplicit(dirQueue, fileQueue):
     absPath = dirQueue.get()
 
-    if args.debug:
-        outQueue.put(("debug.log", "", "dirExplicit (%s)- %s%s"%(current_thread().getName(), absPath, args.snapshotEOL)))
+    debugMsg("dirExplicit (%s)- %s"%(current_thread().getName(), absPath))
 
     if not os.path.exists(absPath):
-        outQueue.put(("error.log", "", "Does not exist; %s%s"%(absPath, args.snapshotEOL)))
-        outQueue.put(("failed", "", "%s%s"%(absPath, args.snapshotEOL)))
+        errorMsg("Does not exist; %s"%absPath)
+        isFailed(absPath)
     elif not os.access(absPath, os.R_OK):
-        outQueue.put(("error.log", "", "Permission Denied; %s%s"%(absPath, args.snapshotEOL)))
-        outQueue.put(("failed", "", "%s%s"%(absPath, args.snapshotEOL)))
-    else:
+        errorMsg("Permission Denied: %s"%absPath)
+        isFailed(absPath)
+    elif os.path.isdir(absPath):
         directory_name, dirs, files = next(os.walk(absPath))
+        debugMsg("dirs %s %s"%(absPath, dirs))
+        debugMsg("files %s %s"%(absPath, files))
 
         if len(dirs) > 0:
             for childPath in dirs:
                 dirQueue.put(os.path.join(absPath, childPath))
-                if args.debug:
-                    outQueue.put(("debug.log", "", "dirQueue.put (%s)- %s%s"%(current_thread().getName(), os.path.join(absPath, childPath), args.snapshotEOL)))
+                debugMsg("dirQueue.put (%s)- %s"%(current_thread().getName(), os.path.join(absPath, childPath)))
         else:
             # must be leaf node lets record it
-            outQueue.put(("directory", "", "%s%s"%(absPath, args.snapshotEOL)))
+            isDirectory(absPath)
 
         for childPath in files:
             fileQueue.put(os.path.join(absPath, childPath))
-            if args.debug:
-                outQueue.put(("debug.log", "", "fileQueue.put (%s)- %s%s"%(current_thread().getName(), os.path.join(absPath, childPath), args.snapshotEOL)))
+            debugMsg("fileQueue.put (%s)- %s"%(current_thread().getName(), os.path.join(absPath, childPath)))
+    else:
+        debugMsg("fileQueue.put (%s)- file in dirQueue %s"%(current_thread().getName(), absPath))
+        fileQueue.put(absPath)
     dirQueue.task_done()
     return;
 
 
 # prime Queues with paths to be processed
 #
-def primeQueues(fileQueue, dirQueue, outQueue):
+def primeQueues(fileQueue, dirQueue):
 
     fileList =[]
 
@@ -650,16 +692,15 @@ def primeQueues(fileQueue, dirQueue, outQueue):
                     else:
                         absPath = os.path.join(args.snapshotCurrent, relPath)
 
-                    if args.debug:
-                        outQueue.put(("debug.log", "", "primeQueues - %s%s"%(absPath, args.snapshotEOL)))
+                    debugMsg("primeQueues - %s"%absPath)
 
                     if os.path.isdir(absPath):
                         dirQueue.put(relPath)
                     elif os.path.isfile(absPath):
                         fileQueue.put(relPath)
                     else:
-                        outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
-                        outQueue.put(("error.log", "", "invalid path: %s%s"%(relPath, args.snapshotEOL)))
+                        isFailed(relPath)
+                        errorMsg("invalid path: %s"%relPath)
         except ValueError:
             # Time to tell all the threads to bail out
             terminateThreads = True
@@ -669,14 +710,13 @@ def primeQueues(fileQueue, dirQueue, outQueue):
         relPath = "."
         absPath = os.path.join(args.snapshotCurrent, relPath)
 
-        if args.debug:
-            outQueue.put(("debug.log", "", "primeQueues - %s%s"%(absPath, args.snapshotEOL)))
+        debugMsg("primeQueues - %s"%absPath)
 
         if os.path.isdir(absPath):
             dirQueue.put(".")
         else:
-            outQueue.put(("failed", "", "%s%s"%(relPath, args.snapshotEOL)))
-            outQueue.put(("error.log", "", "invalid path: %s%s"%(relPath, args.snapshotEOL)))
+            isFailed(relPath)
+            errorMsg("invalid path: %s"%relPath)
     return;
 
 
@@ -713,7 +753,7 @@ if __name__ == '__main__':
     dirQueue = LifoQueue(queueParams['max'])
     resultsQueue = Queue(args.threads*queueParams['max'])
 
-    logConfig(args, resultsQueue)
+    logConfig()
 
     fileHandles = {}
 
@@ -726,11 +766,11 @@ if __name__ == '__main__':
         # setup the pool of path workers
         for i in range(args.threads):
             if args.mode == 'full':
-                pathWorker = Thread(target=snapshotFull, args=(i, fileQueue, dirQueue, resultsQueue))
+                pathWorker = Thread(target=snapshotFull, args=(i, fileQueue, dirQueue))
             elif args.mode == 'incr':
-                pathWorker = Thread(target=snapshotIncr, args=(i, fileQueue, dirQueue, resultsQueue))
+                pathWorker = Thread(target=snapshotIncr, args=(i, fileQueue, dirQueue))
             elif args.mode == 'explicit':
-                pathWorker = Thread(target=snapshotExplicit, args=(i, fileQueue, dirQueue, resultsQueue))
+                pathWorker = Thread(target=snapshotExplicit, args=(i, fileQueue, dirQueue))
             else:
                 terminateThreads = True
                 sys.stderr.write("unrecognised mode! abandon excution.\n")
@@ -741,11 +781,11 @@ if __name__ == '__main__':
 
         # now the worker threads are processing lets feed the fileQueue, this will block if the 
         # rework file is larger than the queue.
-        primeQueues(fileQueue, dirQueue, resultsQueue)
+        primeQueues(fileQueue, dirQueue)
 
 
         if args.debug:
-            resultsQueue.put(("queue.log", "", "\"max\", \"file\", \"dir\", \"results\"\n"))
+            queueMsg("\"max\", \"file\", \"dir\", \"results\"")
         # lets just hang back and wait for the queues to empty
         while not terminateThreads:
             if args.debug:
