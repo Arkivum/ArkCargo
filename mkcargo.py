@@ -158,7 +158,7 @@ def prepOutput():
 
     try:
         if os.path.isdir(args.filebase):
-            dirlist, filelist = dirList(args.filebase)
+            dirlist, filelist = listDir(args.filebase)
 
             if args.prepMode == 'clean':
                 for file in filelist:
@@ -571,12 +571,12 @@ def dirIncr(dirQueue, fileQueue):
         isFailed(relPath)
     elif os.path.isdir(absPath):
         debugMsg("dirIncr (%s)- %s"%(current_thread().getName(), absPath))
-        newDirs, newFiles = dirList(absPath)
+        newDirs, newFiles = listDir(absPath)
         debugMsg("newChildDirs %s %s"%(relPath, newDirs))
         debugMsg("newChildFiles %s %s"%(relPath, newFiles))
 
         if os.path.isdir(oldPath):
-            oldDirs, oldFiles = dirList(oldPath)
+            oldDirs, oldFiles = listDir(oldPath)
             debugMsg("oldChildDirs %s %s"%(relPath, oldDirs))
             debugMsg("oldChildFiles %s %s"%(relPath, oldFiles))
             
@@ -658,7 +658,7 @@ def dirExplicit(dirQueue, fileQueue):
         errorMsg("Permission Denied: %s"%absPath)
         isFailed(absPath)
     elif os.path.isdir(absPath):
-        dirs, files = dirList(absPath)
+        dirs, files = listDir(absPath)
         debugMsg("dirs %s %s"%(absPath, dirs))
         debugMsg("files %s %s"%(absPath, files))
 
