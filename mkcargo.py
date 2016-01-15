@@ -42,7 +42,7 @@ parser = argparse.ArgumentParser(description='Analysis a filesystem and create a
 
 parser.add_argument('-s', dest='followSymlink', action='store_true', help='follow symlinks and ingest their target, defaults to recording symlinks and their targets in the symlink file.')
 
-parser.add_argument('-j', metavar='threads', nargs='?', dest='threads', type=int, default=(multiprocessing.cpu_count()-1), help='Controls multi-threading. By default the program will create one thread per CPU core, one thread is used for writing to the output files, the rest for scanning the file system and calculating MD5 hashes. Multi-threading causes output filenames to be in non-deterministic order, as files that take longer to hash will be delayed while they are hashed.')
+parser.add_argument('-j', metavar='threads', nargs='?', dest='threads', type=int, default=(max(multiprocessing.cpu_count(),1)), help='Controls multi-threading. By default the program will create one thread per CPU core, one thread is used for writing to the output files, the rest for scanning the file system and calculating MD5 hashes. Multi-threading causes output filenames to be in non-deterministic order, as files that take longer to hash will be delayed while they are hashed.')
 
 parser.add_argument('-n', nargs='?', metavar='name', dest='name', type=str, required=True, help='a meaningful name for the dataset, this should be consistent for all snapshot of a given dataset.')
 
@@ -129,8 +129,16 @@ def listDir(path):
     fileList = []
     dirList = []
     listing = os.listdir(path)
-    dirList = filter(os.path.isdir, listing)
-    fileList = filter(os.path.isfile, listing)
+
+    for child in listing:
+        childPath = os.path.join(path, child)
+        if os.path.isdir(childPath):
+            dirList.append(child)
+        elif os.path.isfile(childPath):
+            fileList.append(child)
+        else:
+            isFailed(childPath)
+            errorMsg("is not file, dir or symlink? - %s"%childPath)
     return dirList, fileList;
 
 
