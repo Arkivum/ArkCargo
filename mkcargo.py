@@ -38,7 +38,9 @@ def toBytes(humanBytes):
     bytes = int(humanBytes[:-2]) * byteUnits.get(humanBytes[-2:])
     return bytes;
 
-parser = argparse.ArgumentParser(description='Analysis a filesystem and create a cargo file to drive an ingest job.')
+parser = argparse.ArgumentParser(prog='mkcargo.py', description='Analysis a filesystem and create a cargo file to drive an ingest job.')
+
+parser.add_argument('--version', action='version', version='%(prog)s 0.1')
 
 parser.add_argument('-s', dest='followSymlink', action='store_true', help='follow symlinks and ingest their target, defaults to recording symlinks and their targets in the symlink file.')
 
@@ -70,7 +72,6 @@ group = parser.add_mutually_exclusive_group(required=True)
 group.add_argument('--full', metavar='snapshots', dest='snapshots', nargs=1, default="", help='generate a cargo file for the current snapshot')
 group.add_argument('--incr', metavar='snapshots', dest='snapshots', nargs=2, default="", help='generates a cargo file for the difference between the first snapshot and the second')
 group.add_argument('--files', metavar='file', dest='file', nargs='+', default="", help='a file containing explicit paths for which a cargo file needs to be generated')
-
 
 # convert human readable version of a size in Bytes
 #
@@ -128,7 +129,11 @@ def isSymlink(path, target):
 def listDir(path):
     fileList = []
     dirList = []
+
+    debugMsg("listDir (%s) - %s"%(current_thread().getName(), path))
+
     listing = os.listdir(path)
+    debugMsg("listDir (%s) - %s"%(current_thread().getName(), listing))
 
     for child in listing:
         childPath = os.path.join(path, child)
@@ -139,6 +144,9 @@ def listDir(path):
         else:
             isFailed(childPath)
             errorMsg("is not file, dir or symlink? - %s"%childPath)
+
+    debugMsg("listDir (%s) dirs - %s"%(current_thread().getName(), dirList))
+    debugMsg("listDir (%s) files - %s"%(current_thread().getName(), fileList))
     return dirList, fileList;
 
 
@@ -741,6 +749,13 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args.cargoMaxBytes = toBytes(args.cargoMax)
 
+    terminateThreads = False
+
+    # initialise Queues
+    fileQueue = Queue(queueParams['max'])
+    dirQueue = LifoQueue(queueParams['max'])
+    resultsQueue = Queue(args.threads*queueParams['max'])
+
     try:
         if len(args.snapshots) == 0:
             args.mode = 'explicit'
@@ -760,15 +775,8 @@ if __name__ == '__main__':
         terminateThreads = True
         sys.stderr.write("Cannot create output directory (error: %s)\n"%ValueError)
         sys.exit(-1)
-
-
-    terminateThreads = False
-
-    # initialise Queues
-    fileQueue = Queue(queueParams['max'])
-    dirQueue = LifoQueue(queueParams['max'])
-    resultsQueue = Queue(args.threads*queueParams['max'])
-
+ 
+    debugMsg("Running in %s mode"%args.mode)  
     logConfig()
 
     fileHandles = {}
