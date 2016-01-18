@@ -19,14 +19,6 @@ import csv
 import argparse
 import shutil
 
-# To stop the queue from consuming all the RAM available
-queueParams = {'max' : 10000, 'highWater' : 9000, 'lowWater' : 100}
-
-
-validFiles = ["error.log", "debug.log", "failed", "added", "modified", "unchanged", "symlink", "directory", "config", "cargo", "removed", "queue.log"]
-preserveFiles = ["error.log", "debug.log", "failed", "config", "queue.log"]
-appendFiles = ["added", "modified", "unchanged", "symlink", "directory", "removed", "snapshot.csv", "ingest.csv", "cargo.csv"]
-includeStats = {'snapshot' : ['added', 'modified', 'unchanged'], 'ingest' : ['added', 'modified'], 'cargo': []}
 stats = {}
 statsFields = {}
 
@@ -39,6 +31,19 @@ def toBytes(humanBytes):
     return bytes;
 
 parser = argparse.ArgumentParser(prog='mkcargo.py', description='Analysis a filesystem and create a cargo file to drive an ingest job.')
+# Set consts that we want to know about but the user can not (at this time specify)
+parser.set_defaults(queueParams = {'max' : 10000, 'highWater' : 9000, 'lowWater' : 100})
+parser.set_defaults(outFiles = {'valid' : ['error.log', 'debug.log', 'failed', 'added', 'modified', 'unchanged', 'symlink', 'directory', 'config', 'cargo', 'removed', 'queue.log'], 'preserve' : ['error.log', 'debug.log', 'failed', 'config', 'queue.log'], 'append' : ['added', 'modified', 'unchanged', 'symlink', 'directory', 'removed', 'snapshot.csv', 'ingest.csv', 'cargo.csv'] })
+parser.set_defaults(includeStats = {'snapshot' : ['added', 'modified', 'unchanged'], 'ingest' : ['added', 'modified'], 'cargo': []})
+parser.set_defaults(statsBoundaries = os.path.join(os.path.dirname( os.path.realpath( __file__ )), 'boundaries.csv'))
+parser.set_defaults(executablePath = os.path.dirname( os.path.realpath( __file__ )))
+parser.set_defaults(terminalPath = os.path.realpath(os.getcwd()))
+parser.set_defaults(cargoEOL = '\0')
+parser.set_defaults(cargoPad = 6)
+parser.set_defaults(cargoExt = '.md5')
+parser.set_defaults(lastRunPad = 4)
+parser.set_defaults(lastRunPrefix = 'run')
+parser.set_defaults(snapshotEOL = '\n')
 
 parser.add_argument('--version', action='version', version='%(prog)s 0.1')
 
@@ -52,19 +57,13 @@ parser.add_argument('-t', nargs='?', metavar='yyyymmddThhmmss', dest='timestamp'
 
 parser.add_argument('-o', nargs='?', metavar='output directory', dest='output', type=str, default="output", help='the directory under which to write the output. <output directory>/<name>/<timestamp>/<output files>.')
 
+parser.add_argument('-cargoMax', dest='cargoMax', default='5TB', help=argparse.SUPPRESS)
+
 parser.add_argument('--exists', dest='prepMode', choices=['clean', 'preserve', 'append'], default='preserve', help=argparse.SUPPRESS)
 parser.add_argument('--clean', action='store_true', help='if output directory exists delete its contents before process, by default previous output is preserved.')
-
 parser.add_argument('--debug', dest='debug', action='store_true', help=argparse.SUPPRESS)
-parser.add_argument('-boundaries', dest='statsBoundaries', default=os.path.join(os.path.dirname( os.path.realpath( __file__ )), 'boundaries.csv'), type=str, help=argparse.SUPPRESS)
+
 parser.add_argument('--stats', dest='cargo', action='store_false', help='calculate stats (does not generate a cargo file)')
-parser.add_argument('-cargoEOL', dest='cargoEOL', default='\0', help=argparse.SUPPRESS)
-parser.add_argument('-cargoMax', dest='cargoMax', default='5TB', help=argparse.SUPPRESS)
-parser.add_argument('-cargoPad', dest='cargoPad', default=6, help=argparse.SUPPRESS)
-parser.add_argument('-cargoExt', dest='cargoExt', default='.md5', help=argparse.SUPPRESS)
-parser.add_argument('-lastRunPad', default=4, help=argparse.SUPPRESS)
-parser.add_argument('-lastRunPrefix', default='run', help=argparse.SUPPRESS)
-parser.add_argument('-defaultEOL', dest='snapshotEOL', default='\n', help=argparse.SUPPRESS)
 
 parser.add_argument('--rework', metavar='file', nargs='+', help='a file containing paths for which a cargo file needs to be generated, generally based on a {failed} file from a previous run to be append to the stats and cargo')
 
@@ -163,6 +162,8 @@ def logConfig():
 def prepOutput():
     prefix = "run"
     cargo_ext = ".md5"
+    dirlist = []
+    filelist = []
     moveList = []
     copyList = []
 
@@ -174,7 +175,14 @@ def prepOutput():
 
     try:
         if os.path.isdir(args.filebase):
-            dirlist, filelist = listDir(args.filebase)
+            listing = os.listdir(args.filebase)
+
+            for child in listing:
+                childPath = os.path.abspath(os.path.join(args.filebase, child))
+                if os.path.isdir(childPath):
+                    dirlist.append(child)
+                elif os.path.isfile(childPath):
+                    filelist.append(child)
 
             if args.prepMode == 'clean':
                 for file in filelist:
@@ -188,10 +196,10 @@ def prepOutput():
                 os.makedirs(lastRun)
 
                 if args.prepMode == 'append':
-                    copyList  = list(set(filelist).intersection(appendFiles))
+                    copyList  = list(set(filelist).intersection(args.outFiles['append']))
                 else:
-                    moveList  = list(set(filelist).intersection(appendFiles))
-                moveList += list(set(filelist).intersection(preserveFiles))
+                    moveList  = list(set(filelist).intersection(args.outFiles['append']))
+                moveList += list(set(filelist).intersection(args.outFiles['preserve']))
                 moveList += filter(lambda x: x.endswith(args.cargoExt), filelist)
 
                 for file in moveList:
@@ -273,7 +281,7 @@ def loadStats(fields):
                 cargoCount += 1
                 for field in fields:
                     if field == 'Category':
-                        includeStats['cargo'].append(row[field])
+                        args.includeStats['cargo'].append(row[field])
                         stats[row['Category']][field] = row[field]
                     else:
                         stats[row['Category']][field] = int(row[field])
@@ -293,7 +301,7 @@ def loadStats(fields):
 def initStats(fields):
     # imports boundaries and initialise stats
 
-    for category in includeStats['snapshot']:
+    for category in args.includeStats['snapshot']:
         stats[category] = {}
         for field in fields:
             if field == 'Category':
@@ -310,7 +318,6 @@ def initStats(fields):
 def updateStats(file, size):
     newFile = False
     global stats 
-    global includeStats
     filePath = ""
     bytes = int(size)
 
@@ -324,9 +331,9 @@ def updateStats(file, size):
 
         filename = args.name + "-" +  args.timestamp + "-" + str(stats[file]['Num']).zfill(args.cargoPad) + args.cargoExt
         file = file + str(stats[file]['Num']).zfill(args.cargoPad)
-        if file not in includeStats['cargo']:
+        if file not in args.includeStats['cargo']:
             #add cargo file to list
-            includeStats['cargo'].append(file)
+            args.includeStats['cargo'].append(file)
 
             #initialise new stats line
             stats[file] = {}
@@ -352,7 +359,7 @@ def updateStats(file, size):
 def exportStats():
     # exports stats based on categories listed in includeStats & includeStats 
     try:
-        for statSet in includeStats:
+        for statSet in args.includeStats:
             file = os.path.join(args.filebase,statSet+'.csv')
             with open(file, "wb") as csvfile:
                 writer = csv.DictWriter(csvfile, fieldnames=statsFields)
@@ -361,7 +368,7 @@ def exportStats():
                 for field in statsFields:
                     fields[field] = field
                 writer.writerow(fields)
-                for category in includeStats[statSet]:
+                for category in args.includeStats[statSet]:
                     writer.writerow(stats[category])
     except ValueError:
         sys.stderr.write("Can't export stats to file %s (error: %s)\n"%(filefull, ValueError))
@@ -378,12 +385,12 @@ def outputResult(i, files, q):
         filePath = ""
         file, bytes, message = q.get()
 
-        if file not in validFiles:
+        if file not in args.outFiles['valid']:
             sys.stderr.write("invalid output file'%s'"%file)
             sys.exit(-1)
 
         # update stats for this file
-        if file in list( set(otherFiles) | set(includeStats['snapshot']) | set(includeStats['ingest']) ):
+        if file in list( set(otherFiles) | set(args.includeStats['snapshot']) | set(args.includeStats['ingest']) ):
             changeFile, filePath = updateStats(file, bytes)
         else:
             filePath = os.path.join(args.filebase,file)
@@ -449,7 +456,7 @@ def cargoEntry(path):
 # pathWorker used by threads to process a Full snapshot of the file tree
 #
 def snapshotFull(i, f, d):
-    lowWater = queueParams['lowWater']
+    lowWater = args.queueParams['lowWater']
    
     while not terminateThreads:
         if f.qsize() > lowWater:
@@ -488,6 +495,7 @@ def fileFull(fileQueue):
 # process a single directory
 #
 def dirFull(dirQueue, fileQueue):
+    leafNode = True
     relPath = dirQueue.get()
     absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
 
@@ -498,24 +506,28 @@ def dirFull(dirQueue, fileQueue):
         failed(relPath)
     elif os.path.isdir(absPath):
         debugMsg("dirfull (%s) isDir-%s"%(current_thread().getName(), absPath))
-        dirs, files = listDir(absPath)
-        debugMsg("childDirs %s  %s"%(relPath, dirs))
-        debugMsg("childFiles %s %s"%(relPath, files))
 
-        if len(dirs) > 0:
-            for childPath in dirs:
+        listing = os.listdir(absPath)
+
+        debugMsg("dirFull (%s) - %s"%(current_thread().getName(), listing))
+
+        for child in listing:
+            childPath = os.path.abspath(os.path.join(absPath, child))
+            debugMsg("dirFull (%s)- %s"%(current_thread().getName(), childPath))
+            if os.path.isdir(childPath):
+                leafNode = False
                 dirQueue.put(os.path.join(relPath, childPath))
                 debugMsg("dirQueue.put (%s)- %s"%(current_thread().getName(), os.path.join(relPath, childPath)))
-        else:
+            elif os.path.isfile(childPath):
+                fileQueue.put(os.path.join(relPath, childPath))
+                debugMsg("fileQueue.put (%s)- %s"%(current_thread().getName(), os.path.join(relPath, childPath)))
+            else:
+                isFailed(childPath)
+                errorMsg("is not file, dir or symlink? - %s"%childPath)
+
+        if leafNode:
             # must be leaf node lets record it
             isDirectory(relPath)
-
-        for childPath in files:
-            fileQueue.put(os.path.join(relPath, childPath))
-            debugMsg("fileQueue.put (%s)- %s"%(current_thread().getName(), os.path.join(relPath, childPath)))
-    else:
-        debugMsg("fileQueue.put (%s)- file in dirQueue %s"%(current_thread().getName(), relPath))
-        fileQueue.put(relPath)
 
     dirQueue.task_done()
     return;
@@ -524,7 +536,7 @@ def dirFull(dirQueue, fileQueue):
 # pathWorker used by threads to process a Full snapshot of the file tree
 #
 def snapshotIncr(i, f, d):
-    lowWater = queueParams['lowWater']
+    lowWater = args.queueParams['lowWater']
   
     while not terminateThreads:
         if f.qsize() > lowWater:
@@ -553,6 +565,7 @@ def fileIncr(fileQueue):
         errorMsg("Permission Denied; %s"%absPath)
         failed(relPath)
     elif (not args.followSymlink) and os.path.islink(absPath):
+        debugMsg("fileIncr (%s) isSymlink- %s"%(current_thread().getName(), relPath))
         isSymlink(relPath, os.path.realpath(absPath))
     else:
         if os.path.isfile(oldPath):
@@ -560,11 +573,14 @@ def fileIncr(fileQueue):
                 errorMsg("Permission Denied; %s"%oldPath)
                 isFailed(relPath)
             elif filecmp.cmp(oldPath, absPath):
+                debugMsg("fileIncr (%s) isUnchanged- %s"%(current_thread().getName(), relPath))
                 isUnchanged(relPath, os.path.getsize(absPath))
             else:
+                debugMsg("fileIncr (%s) isModified- %s"%(current_thread().getName(), relPath))
                 isModified(relPath, os.path.getsize(absPath))
                 cargoEntry(relPath)
         else:    
+            debugMsg("fileIncr (%s) isAdded- %s"%(current_thread().getName(), relPath))
             isAdded(relPath, os.path.getsize(absPath))
             cargoEntry(relPath)
     fileQueue.task_done()
@@ -574,42 +590,50 @@ def fileIncr(fileQueue):
 # process a single directory
 #
 def dirIncr(dirQueue, fileQueue):
+    leafNode = True
     relPath = dirQueue.get()
     absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
     oldPath = os.path.abspath(os.path.join(args.snapshotPrevious, relPath))
 
+    
     debugMsg("dirIncr (%s)- %s"%(current_thread().getName(), relPath))
     if not os.access(absPath, os.R_OK):
         errorMsg("Permission Denied; %s"%absPath)
         isFailed(relPath)
-    elif not os.access(oldPath, os.R_OK):
-        errorMsg("Permission Denied; %s"%oldPath)
-        isFailed(relPath)
+    elif (not args.followSymlink) and os.path.islink(absPath):
+            isSymlink(relPath, os.path.realpath(absPath))
     elif os.path.isdir(absPath):
         debugMsg("dirIncr (%s)- %s"%(current_thread().getName(), absPath))
-        newDirs, newFiles = listDir(absPath)
-        debugMsg("newChildDirs %s %s"%(relPath, newDirs))
-        debugMsg("newChildFiles %s %s"%(relPath, newFiles))
+        listingNew = os.listdir(absPath)
+        debugMsg("dirIncr (%s) new - %s"%(current_thread().getName(), listingNew))
 
         if os.path.isdir(oldPath):
-            oldDirs, oldFiles = listDir(oldPath)
-            debugMsg("oldChildDirs %s %s"%(relPath, oldDirs))
-            debugMsg("oldChildFiles %s %s"%(relPath, oldFiles))
-            
-            for removed in list(set(oldDirs).difference(newDirs) | set(oldFiles).difference(newFiles)):
-                isRemoved(os.path.join(relPath, removed), os.path.getsize(oldPath))
+            listingOld = os.listdir(oldPath)
+            debugMsg("dirIncr (%s) old - %s"%(current_thread().getName(), listingOld))
+            if not os.access(oldPath, os.R_OK):
+                errorMsg("Permission Denied; %s"%oldPath)
+                isFailed(relPath)
+            else: 
+                for removed in list(set(listingOld).difference(listingNew)):
+                    isRemoved(os.path.join(relPath, removed), os.path.getsize(oldPath))
 
-        if len(newDirs) > 0:
-            for childPath in newDirs:
-                dirQueue.put(os.path.join(relPath, childPath))
-                debugMsg("dirQueue.put (%s)- %s"%(current_thread().getName(), os.path.join(relPath, childPath)))
-        else:
+        for child in listingNew:
+            childPath = os.path.abspath(os.path.join(absPath, child))
+            debugMsg("dirIncr (%s)- %s"%(current_thread().getName(), childPath))
+            if os.path.isdir(childPath):
+                leafNode = False
+                dirQueue.put(os.path.join(relPath, child))
+                debugMsg("dirQueue.put (%s)- %s"%(current_thread().getName(), os.path.join(relPath, child)))
+            elif os.path.isfile(childPath):
+                fileQueue.put(os.path.join(relPath, child))
+                debugMsg("fileQueue.put (%s)- %s"%(current_thread().getName(), os.path.join(relPath, child)))
+            else:
+                isFailed(childPath)
+                errorMsg("is not file, dir or symlink? - %s"%childPath)
+
+        if leafNode:
             # must be leaf node lets record it
             isDirectory(relPath)
-
-        for childPath in newFiles:
-            fileQueue.put(os.path.join(relPath, childPath))
-            debugMsg("fileQueue.put (%s)- %s"%(current_thread().getName(), os.path.join(relPath, childPath)))
     else:
         debugMsg("fileQueue.put (%s)- file in dirQueue %s"%(current_thread().getName(), relPath))
         fileQueue.put(relPath)
@@ -621,7 +645,7 @@ def dirIncr(dirQueue, fileQueue):
 # pathWorker used by threads to process a Full snapshot of the file tree
 #
 def snapshotExplicit(i, f, d):
-    lowWater = queueParams['lowWater']
+    lowWater = args.queueParams['lowWater']
 
     while not terminateThreads:
         if f.qsize() > lowWater:
@@ -748,13 +772,12 @@ if __name__ == '__main__':
     global args
     args = parser.parse_args()
     args.cargoMaxBytes = toBytes(args.cargoMax)
-
     terminateThreads = False
 
     # initialise Queues
-    fileQueue = Queue(queueParams['max'])
-    dirQueue = LifoQueue(queueParams['max'])
-    resultsQueue = Queue(args.threads*queueParams['max'])
+    fileQueue = Queue(args.queueParams['max'])
+    dirQueue = LifoQueue(args.queueParams['max'])
+    resultsQueue = Queue(args.threads*args.queueParams['max'])
 
     try:
         if len(args.snapshots) == 0:
@@ -813,7 +836,7 @@ if __name__ == '__main__':
         # lets just hang back and wait for the queues to empty
         while not terminateThreads:
             if args.debug:
-                resultsQueue.put(("queue.log", "", "%s, %s, %s, %s\n"%(queueParams['max'], fileQueue.qsize(), dirQueue.qsize(), resultsQueue.qsize())))
+                resultsQueue.put(("queue.log", "", "%s, %s, %s, %s\n"%(args.queueParams['max'], fileQueue.qsize(), dirQueue.qsize(), resultsQueue.qsize())))
             time.sleep(.1)
             if fileQueue.empty() and dirQueue.empty():
                 fileQueue.join()
