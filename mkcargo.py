@@ -494,9 +494,9 @@ def fileFull(fileQueue):
 
 # process a single directory
 #
-def dirFull(dirQueue, fileQueue):
+def dirFull(dirQ, fileQ):
     leafNode = True
-    relPath = dirQueue.get()
+    relPath = dirQ.get()
     absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
 
     debugMsg("dirfull (%s)- %s"%(current_thread().getName(), relPath))
@@ -511,25 +511,26 @@ def dirFull(dirQueue, fileQueue):
 
         debugMsg("dirFull (%s) - %s"%(current_thread().getName(), listing))
 
-        for child in listing:
-            childPath = os.path.abspath(os.path.join(absPath, child))
-            debugMsg("dirFull (%s)- %s"%(current_thread().getName(), childPath))
-            if os.path.isdir(childPath):
+        for childItem in listing:
+            childAbs = os.path.abspath(os.path.join(absPath, childItem))
+            childRel = os.path.join(relPath, childItem)
+            debugMsg("dirFull (%s)- %s"%(current_thread().getName(), childRel))
+            if os.path.isdir(childAbs):
                 leafNode = False
-                dirQueue.put(os.path.join(relPath, child))
-                debugMsg("dirQueue.put (%s)- %s"%(current_thread().getName(), os.path.join(relPath, childPath)))
-            elif os.path.isfile(childPath):
-                fileQueue.put(os.path.join(relPath, child))
-                debugMsg("fileQueue.put (%s)- %s"%(current_thread().getName(), os.path.join(relPath, childPath)))
+                dirQ.put(childRel)
+                debugMsg("dirQueue.put (%s)- %s"%(current_thread().getName(), childRel))
+            elif os.path.isfile(childAbs):
+                fileQ.put(childRel)
+                debugMsg("fileQueue.put (%s)- %s"%(current_thread().getName(), childRel))
             else:
-                isFailed(childPath)
-                errorMsg("is not file, dir or symlink? - %s"%childPath)
+                isFailed(childRel)
+                errorMsg("is not file, dir or symlink? - %s"%childRel)
 
         if leafNode:
             # must be leaf node lets record it
             isDirectory(relPath)
 
-    dirQueue.task_done()
+    dirQ.task_done()
     return;
 
 
@@ -589,9 +590,9 @@ def fileIncr(fileQueue):
 
 # process a single directory
 #
-def dirIncr(dirQueue, fileQueue):
+def dirIncr(dirQ, fileQ):
     leafNode = True
-    relPath = dirQueue.get()
+    relPath = dirQ.get()
     absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
     oldPath = os.path.abspath(os.path.join(args.snapshotPrevious, relPath))
 
@@ -608,35 +609,36 @@ def dirIncr(dirQueue, fileQueue):
         debugMsg("dirIncr (%s) new - %s"%(current_thread().getName(), listingNew))
 
         if os.path.isdir(oldPath):
-            listingOld = os.listdir(oldPath)
-            debugMsg("dirIncr (%s) old - %s"%(current_thread().getName(), listingOld))
             if not os.access(oldPath, os.R_OK):
                 errorMsg("Permission Denied; %s"%oldPath)
                 isFailed(relPath)
             else: 
+                listingOld = os.listdir(oldPath)
+                debugMsg("dirIncr (%s) old - %s"%(current_thread().getName(), listingOld))
                 for removed in list(set(listingOld).difference(listingNew)):
                     isRemoved(os.path.join(relPath, removed), os.path.getsize(oldPath))
 
-        for child in listingNew:
-            childPath = os.path.abspath(os.path.join(absPath, child))
-            debugMsg("dirIncr (%s)- %s"%(current_thread().getName(), childPath))
-            if os.path.isdir(childPath):
+        for childItem in listingNew:
+            childAbs = os.path.abspath(os.path.join(absPath, childItem))
+            childRel = os.path.join(relPath, childItem)
+            debugMsg("dirIncr (%s)- %s"%(current_thread().getName(), childItem))
+            if os.path.isdir(childAbs):
                 leafNode = False
-                dirQueue.put(os.path.join(relPath, child))
-                debugMsg("dirQueue.put (%s)- %s"%(current_thread().getName(), os.path.join(relPath, child)))
-            elif os.path.isfile(childPath):
-                fileQueue.put(os.path.join(relPath, child))
-                debugMsg("fileQueue.put (%s)- %s"%(current_thread().getName(), os.path.join(relPath, child)))
+                dirQ.put(childRel)
+                debugMsg("dirQueue.put (%s)- %s"%(current_thread().getName(), childRel))
+            elif os.path.isfile(childAbs):
+                fileQ.put(childRel)
+                debugMsg("fileQueue.put (%s)- %s"%(current_thread().getName(), childRel))
             else:
-                isFailed(childPath)
-                errorMsg("is not file, dir or symlink? - %s"%childPath)
+                isFailed(childRel)
+                errorMsg("is not file, dir or symlink? - %s"%childRel)
 
         if leafNode:
             # must be leaf node lets record it
             isDirectory(relPath)
     else:
         debugMsg("fileQueue.put (%s)- file in dirQueue %s"%(current_thread().getName(), relPath))
-        fileQueue.put(relPath)
+        fileQ.put(relPath)
     
     dirQueue.task_done()
     return;
