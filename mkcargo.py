@@ -516,10 +516,10 @@ def dirFull(dirQueue, fileQueue):
             debugMsg("dirFull (%s)- %s"%(current_thread().getName(), childPath))
             if os.path.isdir(childPath):
                 leafNode = False
-                dirQueue.put(os.path.join(relPath, childPath))
+                dirQueue.put(os.path.join(relPath, child))
                 debugMsg("dirQueue.put (%s)- %s"%(current_thread().getName(), os.path.join(relPath, childPath)))
             elif os.path.isfile(childPath):
-                fileQueue.put(os.path.join(relPath, childPath))
+                fileQueue.put(os.path.join(relPath, child))
                 debugMsg("fileQueue.put (%s)- %s"%(current_thread().getName(), os.path.join(relPath, childPath)))
             else:
                 isFailed(childPath)
