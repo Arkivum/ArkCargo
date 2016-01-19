@@ -474,8 +474,8 @@ def snapshotFull(i, f, d):
 
 # process a single file path 
 # 
-def fileFull(fileQueue):
-    relPath = fileQueue.get()
+def fileFull(fileQ):
+    relPath = fileQ.get()
     absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
 
     debugMsg("fileFull (%s)- %s"%(current_thread().getName(), relPath))
@@ -489,7 +489,7 @@ def fileFull(fileQueue):
         else:
             isAdded(relPath, os.path.getsize(absPath))
             cargoEntry(relPath)
-    fileQueue.task_done()
+    fileQ.task_done()
     return;
 
 # process a single directory
@@ -555,8 +555,8 @@ def snapshotIncr(i, f, d):
 
 # process a single file path
 #
-def fileIncr(fileQueue):
-    relPath = fileQueue.get()
+def fileIncr(fileQ):
+    relPath = fileQ.get()
     absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
     oldPath = os.path.abspath(os.path.join(args.snapshotPrevious, relPath))
 
@@ -584,7 +584,7 @@ def fileIncr(fileQueue):
             debugMsg("fileIncr (%s) isAdded- %s"%(current_thread().getName(), relPath))
             isAdded(relPath, os.path.getsize(absPath))
             cargoEntry(relPath)
-    fileQueue.task_done()
+    fileQ.task_done()
     return;
 
 
@@ -665,8 +665,8 @@ def snapshotExplicit(i, f, d):
 
 # process a single file path
 #
-def fileExplicit(fileQueue):
-    absPath = fileQueue.get()
+def fileExplicit(fileQ):
+    absPath = fileQ.get()
 
     debugMsg("fileExplicit (%s)- %s"%(current_thread().getName(), absPath))
 
@@ -682,14 +682,14 @@ def fileExplicit(fileQueue):
         else:
             isAdded(absPath, os.path.getsize(absPath))
             cargoEntry(absPath)
-    fileQueue.task_done()
+    fileQ.task_done()
     return;
 
 
 # process a single directory
 #
-def dirExplicit(dirQueue, fileQueue):
-    absPath = dirQueue.get()
+def dirExplicit(dirQ, fileQ):
+    absPath = dirQ.get()
 
     debugMsg("dirExplicit (%s)- %s"%(current_thread().getName(), absPath))
 
@@ -706,19 +706,19 @@ def dirExplicit(dirQueue, fileQueue):
 
         if len(dirs) > 0:
             for childPath in dirs:
-                dirQueue.put(os.path.join(absPath, childPath))
+                dirQ.put(os.path.join(absPath, childPath))
                 debugMsg("dirQueue.put (%s)- %s"%(current_thread().getName(), os.path.join(absPath, childPath)))
         else:
             # must be leaf node lets record it
             isDirectory(absPath)
 
         for childPath in files:
-            fileQueue.put(os.path.join(absPath, childPath))
+            fileQ.put(os.path.join(absPath, childPath))
             debugMsg("fileQueue.put (%s)- %s"%(current_thread().getName(), os.path.join(absPath, childPath)))
     else:
         debugMsg("fileQueue.put (%s)- file in dirQueue %s"%(current_thread().getName(), absPath))
-        fileQueue.put(absPath)
-    dirQueue.task_done()
+        fileQ.put(absPath)
+    dirQ.task_done()
     return;
 
 
