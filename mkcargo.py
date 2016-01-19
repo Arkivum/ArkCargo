@@ -457,15 +457,20 @@ def cargoEntry(path):
 #
 def snapshotFull(i, f, d):
     lowWater = args.queueParams['lowWater']
+    debugMsg("lowWater = %s (%s)"%(lowWater, current_thread().getName()))
+    threadName =current_thread().getName()
    
     while not terminateThreads:
-        if f.qsize() > lowWater:
+        #if f.qsize() > lowWater:
+        if not f.empty():
+            debugMsg("f empty(%s) d !empty(%s) (%s) calling fileFull"%(f.qsize(), d.qsize(), threadName))
             fileFull(f)
         else:
             if not d.empty():
+                debugMsg("f empty(%s) d !empty(%s) (%s) calling dirFull"%(f.qsize(), d.qsize(), threadName))
                 dirFull(d, f)
             elif f.empty():
-                debugMsg("Idle (%s)"%current_thread().getName())
+                debugMsg("f empty(%s) d empty(%s) (%s) Idle"%(f.qsize(), d.qsize(), threadName))
 	        time.sleep(1)
             else:
                 fileFull(f)
