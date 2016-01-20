@@ -88,8 +88,7 @@ def debugMsg(message):
     return;
 
 def errorMsg(message):
-    if args.debug:
-        resultsQueue.put(("error.log", "", message + args.snapshotEOL))
+    resultsQueue.put(("error.log", "", message + args.snapshotEOL))
     return;
 
 def queueMsg(message):
@@ -448,7 +447,7 @@ def cargoEntry(path):
 
         except IOError as e:
             errorMsg("%s %s"%(e, absPath))
-            failed(path)
+            isFailed(path)
             pass
     return;
 
@@ -487,7 +486,7 @@ def fileFull(fileQ):
 
     if not os.access(absPath, os.R_OK):
         errorMsg("Permission Denied: %s"%absPath)
-        failed(relPath)
+        isFailed(relPath)
     else:
         if (not args.followSymlink) and os.path.islink(absPath):
             isSymlink(relPath, os.path.realpath(absPath))
@@ -508,7 +507,7 @@ def dirFull(dirQ, fileQ):
 
     if not os.access(absPath, os.R_OK):
         errorMsg("Permission Denied: %s"%absPath)
-        failed(relPath)
+        isFailed(relPath)
     elif os.path.isdir(absPath):
         debugMsg("dirfull (%s) isDir-%s"%(current_thread().getName(), absPath))
 
@@ -569,7 +568,7 @@ def fileIncr(fileQ):
 
     if not os.access(absPath, os.R_OK):
         errorMsg("Permission Denied; %s"%absPath)
-        failed(relPath)
+        isFailed(relPath)
     elif (not args.followSymlink) and os.path.islink(absPath):
         debugMsg("fileIncr (%s) isSymlink- %s"%(current_thread().getName(), relPath))
         isSymlink(relPath, os.path.realpath(absPath))
