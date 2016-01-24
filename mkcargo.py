@@ -129,7 +129,8 @@ def listDir(path):
     dirList = []
 
     debugMsg("listDir (%s) - %s"%(current_thread().getName(), path))
-
+    
+    os.chdir(path)
     listing = os.listdir(path)
     debugMsg("listDir (%s) - %s"%(current_thread().getName(), listing))
 
@@ -458,7 +459,12 @@ def snapshotFull(i, f, d):
     lowWater = args.queueParams['lowWater']
     debugMsg("lowWater = %s (%s)"%(lowWater, current_thread().getName()))
     threadName =current_thread().getName()
-   
+  
+    if os.path.isdir(args.snapshotCurrent):
+        os.chdir(args.snapshotCurrent)
+    else:
+        errorMsg("bad snapshot: %s"%args.snapshotCurrent)
+ 
     while not terminateThreads:
         #if f.qsize() > lowWater:
         if not f.empty():
@@ -510,10 +516,14 @@ def dirFull(dirQ, fileQ):
         isFailed(relPath)
     elif os.path.isdir(absPath):
         debugMsg("dirfull (%s) isDir-%s"%(current_thread().getName(), absPath))
+        
+        os.chdir(absPath)
 
         listing = os.listdir(absPath)
-
-        debugMsg("dirFull (%s) - %s"%(current_thread().getName(), listing))
+        if len(listing) == 0:
+            debugMsg("dirFull (%s) - empty directory?"%current_thread().getName())
+        else: 
+            debugMsg("dirFull (%s) - %s"%(current_thread().getName(), listing))
 
         for childItem in listing:
             childAbs = os.path.abspath(os.path.join(absPath, childItem))
@@ -609,6 +619,7 @@ def dirIncr(dirQ, fileQ):
             isSymlink(relPath, os.path.realpath(absPath))
     elif os.path.isdir(absPath):
         debugMsg("dirIncr (%s)- %s"%(current_thread().getName(), absPath))
+        os.chdir(absPath)
         listingNew = os.listdir(absPath)
         debugMsg("dirIncr (%s) new - %s"%(current_thread().getName(), listingNew))
 
@@ -617,6 +628,7 @@ def dirIncr(dirQ, fileQ):
                 errorMsg("Permission Denied; %s"%oldPath)
                 isFailed(relPath)
             else: 
+                os.chdir(oldPath)
                 listingOld = os.listdir(oldPath)
                 debugMsg("dirIncr (%s) old - %s"%(current_thread().getName(), listingOld))
                 for removed in list(set(listingOld).difference(listingNew)):
