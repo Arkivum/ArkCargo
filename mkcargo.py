@@ -134,7 +134,7 @@ def listDir(path):
     # without stepping into the file system can have interesting and 
     # unpredictable results, like an empty listing. 
     os.chdir(path)
-    listing = os.listdir('.')
+    listing = os.listdir('path')
     debugMsg("listDir (%s) - %s"%(current_thread().getName(), listing))
 
     for child in listing:
@@ -637,8 +637,14 @@ def dirIncr(dirQ, fileQ):
     elif os.path.isdir(absPath):
         debugMsg("dirIncr (%s)- %s"%(current_thread().getName(), absPath))
 
-        listingNew = os.listdir(absPath)
-        debugMsg("dirIncr (%s) new - %s"%(current_thread().getName(), listingNew))
+        while (attempt < tries):
+            attempt += 1
+            listingNew = os.listdir(absPath)
+            if len(listingNew) > 0:
+                debugMsg("dirIncr (%s) attempt %s - %s"%(current_thread().getName(), attempt, listingNew))
+                break;
+            else: 
+                debugMsg("dirIncr (%s) - empty directory?"%current_thread().getName())
 
         if os.path.isdir(oldPath):
             if not os.access(oldPath, os.R_OK):
@@ -796,7 +802,7 @@ def primeQueues(fileQueue, dirQueue):
         debugMsg("primeQueues - %s"%absPath)
 
         if os.path.isdir(absPath):
-            dirQueue.put(".")
+            dirQueue.put(relPath)
         else:
             isFailed(relPath)
             errorMsg("invalid path: %s"%relPath)
@@ -877,7 +883,7 @@ if __name__ == '__main__':
         # lets just hang back and wait for the queues to empty
         while not terminateThreads:
             if args.debug:
-                resultsQueue.put(("queue.csv", "", '"%s", "%s", "%s", "%s"\n'%(args.queueParams['max'], fileQueue.qsize(), dirQueue.qsize(), resultsQueue.qsize())))
+                resultsQueue.put(("queue.csv", "", "\"%s\", \"%s\", \"%s\", \"%s\"\n"%(args.queueParams['max'], fileQueue.qsize(), dirQueue.qsize(), resultsQueue.qsize())))
             time.sleep(.1)
             if fileQueue.empty() and dirQueue.empty():
                 fileQueue.join()
