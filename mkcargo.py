@@ -33,7 +33,7 @@ def toBytes(humanBytes):
 parser = argparse.ArgumentParser(prog='mkcargo.py', description='Analysis a filesystem and create a cargo file to drive an ingest job.')
 # Set consts that we want to know about but the user can not (at this time specify)
 parser.set_defaults(queueParams = {'max' : 10000, 'highWater' : 9000, 'lowWater' : 100})
-parser.set_defaults(outFiles = {'valid' : ['error.log', 'debug.log', 'failed', 'added', 'modified', 'unchanged', 'symlink', 'directory', 'config', 'cargo', 'removed', 'queue.log'], 'preserve' : ['error.log', 'debug.log', 'failed', 'config', 'queue.log'], 'append' : ['added', 'modified', 'unchanged', 'symlink', 'directory', 'removed', 'snapshot.csv', 'ingest.csv', 'cargo.csv'] })
+parser.set_defaults(outFiles = {'valid' : ['error.log', 'debug.log', 'failed', 'added', 'modified', 'unchanged', 'symlink', 'directory', 'config', 'cargo', 'removed', 'queue.csv'], 'preserve' : ['error.log', 'debug.log', 'failed', 'config', 'queue.csv'], 'append' : ['added', 'modified', 'unchanged', 'symlink', 'directory', 'removed', 'snapshot.csv', 'ingest.csv', 'cargo.csv'] })
 parser.set_defaults(includeStats = {'snapshot' : ['added', 'modified', 'unchanged'], 'ingest' : ['added', 'modified'], 'cargo': []})
 parser.set_defaults(statsBoundaries = os.path.join(os.path.dirname( os.path.realpath( __file__ )), 'boundaries.csv'))
 parser.set_defaults(executablePath = os.path.dirname( os.path.realpath( __file__ )))
@@ -45,7 +45,7 @@ parser.set_defaults(lastRunPad = 4)
 parser.set_defaults(lastRunPrefix = 'run')
 parser.set_defaults(snapshotEOL = '\n')
 
-parser.add_argument('--version', action='version', version='%(prog)s 0.2.0')
+parser.add_argument('--version', action='version', version='%(prog)s 0.2.1-Beta')
 
 parser.add_argument('-s', dest='followSymlink', action='store_true', help='follow symlinks and ingest their target, defaults to recording symlinks and their targets in the symlink file.')
 
@@ -93,7 +93,7 @@ def errorMsg(message):
 
 def queueMsg(message):
     if args.debug:
-        resultsQueue.put(("queue.log", "", message + args.snapshotEOL))
+        resultsQueue.put(("queue.csv", "", message + args.snapshotEOL))
     return;
 
 def isDirectory(path):
@@ -129,9 +129,12 @@ def listDir(path):
     dirList = []
 
     debugMsg("listDir (%s) - %s"%(current_thread().getName(), path))
-    
+   
+    # This is necessary because when used with a VFS, just listing a path
+    # without stepping into the file system can have interesting and 
+    # unpredictable results, like an empty listing. 
     os.chdir(path)
-    listing = os.listdir(path)
+    listing = os.listdir('.')
     debugMsg("listDir (%s) - %s"%(current_thread().getName(), listing))
 
     for child in listing:
@@ -398,14 +401,18 @@ def outputResult(i, files, q):
         if changeFile and (file in files):
            try:
                (files[file]).close()
-               files[file] = open(filePath, "a", 0)
+               files[file] = open(filePath, "w", 0)
            except ValueError:
                 sys.stderr.write("can't open %s"%file)
                 sys.exit(-1)
 
         if not file in files:
             try:
-                files[file] = open(filePath, "a", 0)
+                # This is necessary for REALLY early 2.6.1 builds
+                # where append mode doesn't create a file if it doesn't
+                # already exist.
+                mode = 'a' if os.path.exists(filePath) else 'w'
+                files[file] = open(filePath, mode, 0)
             except ValueError:
                 sys.stderr.write("can't open %s"%file)
                 sys.exit(-1)
@@ -461,6 +468,9 @@ def snapshotFull(i, f, d):
     threadName =current_thread().getName()
   
     if os.path.isdir(args.snapshotCurrent):
+        # This is necessary because when used with a VFS, just listing a path
+        # without stepping into the file system can have interesting and
+        # unpredictable results, like an empty listing.
         os.chdir(args.snapshotCurrent)
     else:
         errorMsg("bad snapshot: %s"%args.snapshotCurrent)
@@ -468,14 +478,14 @@ def snapshotFull(i, f, d):
     while not terminateThreads:
         #if f.qsize() > lowWater:
         if not f.empty():
-            debugMsg("f empty(%s) d !empty(%s) (%s) calling fileFull"%(f.qsize(), d.qsize(), threadName))
+            debugMsg("f (%s) d (%s) (%s) calling fileFull"%(f.qsize(), d.qsize(), threadName))
             fileFull(f)
         else:
             if not d.empty():
-                debugMsg("f empty(%s) d !empty(%s) (%s) calling dirFull"%(f.qsize(), d.qsize(), threadName))
+                debugMsg("f (%s) d (%s) (%s) calling dirFull"%(f.qsize(), d.qsize(), threadName))
                 dirFull(d, f)
             elif f.empty():
-                debugMsg("f empty(%s) d empty(%s) (%s) Idle"%(f.qsize(), d.qsize(), threadName))
+                debugMsg("f (%s) d (%s) (%s) Idle"%(f.qsize(), d.qsize(), threadName))
 	        time.sleep(1)
             else:
                 fileFull(f)
@@ -511,19 +521,26 @@ def dirFull(dirQ, fileQ):
 
     debugMsg("dirfull (%s)- %s"%(current_thread().getName(), relPath))
 
-    if not os.access(absPath, os.R_OK):
+    if not os.path.exists(absPath):
+        errorMsg("Path does not exist: %s"%absPath)
+        isFailed(relPath)
+    elif not os.access(absPath, os.R_OK):
         errorMsg("Permission Denied: %s"%absPath)
         isFailed(relPath)
     elif os.path.isdir(absPath):
         debugMsg("dirfull (%s) isDir-%s"%(current_thread().getName(), absPath))
-        
-        os.chdir(absPath)
 
-        listing = os.listdir(absPath)
-        if len(listing) == 0:
-            debugMsg("dirFull (%s) - empty directory?"%current_thread().getName())
-        else: 
-            debugMsg("dirFull (%s) - %s"%(current_thread().getName(), listing))
+        tries = 6
+        attempt = 0
+        
+        while (attempt < tries):
+            attempt += 1
+            listing = os.listdir(absPath)
+            if len(listing) > 0:
+                debugMsg("dirFull (%s) attempt %s - %s"%(current_thread().getName(), attempt, listing))
+                break;
+            else: 
+                debugMsg("dirFull (%s) - empty directory?"%current_thread().getName())
 
         for childItem in listing:
             childAbs = os.path.abspath(os.path.join(absPath, childItem))
@@ -619,7 +636,7 @@ def dirIncr(dirQ, fileQ):
             isSymlink(relPath, os.path.realpath(absPath))
     elif os.path.isdir(absPath):
         debugMsg("dirIncr (%s)- %s"%(current_thread().getName(), absPath))
-        os.chdir(absPath)
+
         listingNew = os.listdir(absPath)
         debugMsg("dirIncr (%s) new - %s"%(current_thread().getName(), listingNew))
 
@@ -807,6 +824,12 @@ if __name__ == '__main__':
             args.snapshotPrevious, args.snapshotCurrent = args.snapshots
             args.mode = 'incr'
 
+        if args.mode in ['full', 'incr'] and os.path.isdir(args.snapshotCurrent):
+            os.chdir(args.snapshotCurrent)
+        else:
+            sys.stderr.write("Current not a directory!\n")
+            sys.exit(-1)
+
         args.filebase = os.path.join(args.output, args.name, args.timestamp)
         prepOutput()
 
@@ -854,7 +877,7 @@ if __name__ == '__main__':
         # lets just hang back and wait for the queues to empty
         while not terminateThreads:
             if args.debug:
-                resultsQueue.put(("queue.log", "", "%s, %s, %s, %s\n"%(args.queueParams['max'], fileQueue.qsize(), dirQueue.qsize(), resultsQueue.qsize())))
+                resultsQueue.put(("queue.csv", "", '"%s", "%s", "%s", "%s"\n'%(args.queueParams['max'], fileQueue.qsize(), dirQueue.qsize(), resultsQueue.qsize())))
             time.sleep(.1)
             if fileQueue.empty() and dirQueue.empty():
                 fileQueue.join()
