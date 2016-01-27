@@ -32,7 +32,7 @@ def toBytes(humanBytes):
 
 parser = argparse.ArgumentParser(prog='mkcargo.py', description='Analysis a filesystem and create a cargo file to drive an ingest job.')
 # Set consts that we want to know about but the user can not (at this time specify)
-parser.set_defaults(queueParams = {'max' : 10000, 'highWater' : 9000, 'lowWater' : 100})
+parser.set_defaults(queueParams = {'max' : 100000, 'highWater' : 9000, 'lowWater' : 100})
 parser.set_defaults(outFiles = {'valid' : ['error.log', 'debug.log', 'failed', 'added', 'modified', 'unchanged', 'symlink', 'directory', 'config', 'cargo', 'removed', 'queue.csv'], 'preserve' : ['error.log', 'debug.log', 'failed', 'config', 'queue.csv'], 'append' : ['added', 'modified', 'unchanged', 'symlink', 'directory', 'removed', 'snapshot.csv', 'ingest.csv', 'cargo.csv'] })
 parser.set_defaults(includeStats = {'snapshot' : ['added', 'modified', 'unchanged'], 'ingest' : ['added', 'modified'], 'cargo': []})
 parser.set_defaults(statsBoundaries = os.path.join(os.path.dirname( os.path.realpath( __file__ )), 'boundaries.csv'))
@@ -463,10 +463,10 @@ def cargoEntry(path):
 # pathWorker used by threads to process a Full snapshot of the file tree
 #
 def snapshotFull(i, f, d):
-    lowWater = args.queueParams['lowWater']
-    debugMsg("lowWater = %s (%s)"%(lowWater, current_thread().getName()))
     threadName =current_thread().getName()
-  
+    fileOnly = False if (i % 2) == 0 else True
+    debugMsg("thread ident %s - fileOnly: %s"%(i, fileOnly))  
+ 
     if os.path.isdir(args.snapshotCurrent):
         # This is necessary because when used with a VFS, just listing a path
         # without stepping into the file system can have interesting and
@@ -476,19 +476,15 @@ def snapshotFull(i, f, d):
         errorMsg("bad snapshot: %s"%args.snapshotCurrent)
  
     while not terminateThreads:
-        #if f.qsize() > lowWater:
         if not f.empty():
             debugMsg("f (%s) d (%s) (%s) calling fileFull"%(f.qsize(), d.qsize(), threadName))
             fileFull(f)
+        elif d.empty() or fileOnly:
+            debugMsg("f (%s) d (%s) (%s) Idle"%(f.qsize(), d.qsize(), threadName))
+            time.sleep(i)
         else:
-            if not d.empty():
-                debugMsg("f (%s) d (%s) (%s) calling dirFull"%(f.qsize(), d.qsize(), threadName))
-                dirFull(d, f)
-            elif f.empty():
-                debugMsg("f (%s) d (%s) (%s) Idle"%(f.qsize(), d.qsize(), threadName))
-	        time.sleep(1)
-            else:
-                fileFull(f)
+            debugMsg("f (%s) d (%s) (%s) calling dirFull"%(f.qsize(), d.qsize(), threadName))
+            dirFull(d, f)
     return;
 
 
@@ -568,19 +564,28 @@ def dirFull(dirQ, fileQ):
 # pathWorker used by threads to process a Full snapshot of the file tree
 #
 def snapshotIncr(i, f, d):
-    lowWater = args.queueParams['lowWater']
-  
+    threadName =current_thread().getName()
+    fileOnly = False if (i % 2) == 0 else True
+    debugMsg("thread ident %s - fileOnly: %s"%(i, fileOnly))
+
+    if os.path.isdir(args.snapshotCurrent):
+        # This is necessary because when used with a VFS, just listing a path
+        # without stepping into the file system can have interesting and
+        # unpredictable results, like an empty listing.
+        os.chdir(args.snapshotCurrent)
+    else:
+        errorMsg("bad snapshot: %s"%args.snapshotCurrent)
+
     while not terminateThreads:
-        if f.qsize() > lowWater:
+        if not f.empty():
+            debugMsg("f (%s) d (%s) (%s) calling fileIncr"%(f.qsize(), d.qsize(), threadName))
             fileIncr(f)
+        elif d.empty() or fileOnly:
+            debugMsg("f (%s) d (%s) (%s) Idle"%(f.qsize(), d.qsize(), threadName))
+            time.sleep(i)
         else:
-            if not d.empty():
-                dirIncr(d, f)
-            elif f.empty():
-                debugMsg("Idle (%s)"%current_thread().getName())
-                time.sleep(1)
-            else:
-                fileIncr(f)
+            debugMsg("f (%s) d (%s) (%s) calling dirIncr"%(f.qsize(), d.qsize(), threadName))
+            dirIncr(d, f)
     return;
 
 
@@ -686,19 +691,28 @@ def dirIncr(dirQ, fileQ):
 # pathWorker used by threads to process a Full snapshot of the file tree
 #
 def snapshotExplicit(i, f, d):
-    lowWater = args.queueParams['lowWater']
+    threadName =current_thread().getName()
+    fileOnly = False if (i % 2) == 0 else True
+    debugMsg("thread ident %s - fileOnly: %s"%(i, fileOnly))
+
+    if os.path.isdir(args.snapshotCurrent):
+        # This is necessary because when used with a VFS, just listing a path
+        # without stepping into the file system can have interesting and
+        # unpredictable results, like an empty listing.
+        os.chdir(args.snapshotCurrent)
+    else:
+        errorMsg("bad snapshot: %s"%args.snapshotCurrent)
 
     while not terminateThreads:
-        if f.qsize() > lowWater:
+        if not f.empty():
+            debugMsg("f (%s) d (%s) (%s) calling fileFull"%(f.qsize(), d.qsize(), threadName))
             fileExplicit(f)
+        elif d.empty() or fileOnly:
+            debugMsg("f (%s) d (%s) (%s) Idle"%(f.qsize(), d.qsize(), threadName))
+            time.sleep(i)
         else:
-            if not d.empty():
-                dirExplicit(d, f)
-            elif f.empty():
-                debugMsg("Idle (%s)"%current_thread().getName())
-                time.sleep(1)
-            else:
-                fileExplicit(f)
+            debugMsg("f (%s) d (%s) (%s) calling dirFull"%(f.qsize(), d.qsize(), threadName))
+            dirExplicit(d, f)
     return;
 
 
@@ -886,7 +900,10 @@ if __name__ == '__main__':
                 resultsQueue.put(("queue.csv", "", "\"%s\", \"%s\", \"%s\", \"%s\"\n"%(args.queueParams['max'], fileQueue.qsize(), dirQueue.qsize(), resultsQueue.qsize())))
             time.sleep(.1)
             if fileQueue.empty() and dirQueue.empty():
+                resultsQueue.put(("queue.csv", "", "\"%s\", \"%s\", \"%s\", \"%s\"\n"%(args.queueParams['max'], fileQueue.qsize(), dirQueue.qsize(), resultsQueue.qsize())))
+                dirQueue.join()
                 fileQueue.join()
+                terminateThreads = True
                 resultsQueue.join()
                 exportStats()
                 for file in fileHandles:
