@@ -643,6 +643,9 @@ def dirIncr(dirQ, fileQ):
     elif os.path.isdir(absPath):
         debugMsg("dirIncr (%s)- %s"%(current_thread().getName(), absPath))
 
+        tries = 6
+        attempt = 0
+
         while (attempt < tries):
             attempt += 1
             listingNew = os.listdir(absPath)
