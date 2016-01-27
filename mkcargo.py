@@ -45,7 +45,7 @@ parser.set_defaults(lastRunPad = 4)
 parser.set_defaults(lastRunPrefix = 'run')
 parser.set_defaults(snapshotEOL = '\n')
 
-parser.add_argument('--version', action='version', version='%(prog)s 0.2.1-Beta')
+parser.add_argument('--version', action='version', version='%(prog)s 0.2.1')
 
 parser.add_argument('-s', dest='followSymlink', action='store_true', help='follow symlinks and ingest their target, defaults to recording symlinks and their targets in the symlink file.')
 
@@ -537,6 +537,7 @@ def dirFull(dirQ, fileQ):
                 break;
             else: 
                 debugMsg("dirFull (%s) - empty directory?"%current_thread().getName())
+                time.sleep(1)       
 
         for childItem in listing:
             childAbs = os.path.abspath(os.path.join(absPath, childItem))
@@ -897,10 +898,10 @@ if __name__ == '__main__':
         # lets just hang back and wait for the queues to empty
         while not terminateThreads:
             if args.debug:
-                resultsQueue.put(("queue.csv", "", "\"%s\", \"%s\", \"%s\", \"%s\"\n"%(args.queueParams['max'], fileQueue.qsize(), dirQueue.qsize(), resultsQueue.qsize())))
+                queueMsg("\"%s\", \"%s\", \"%s\", \"%s\"\n"%(args.queueParams['max'], fileQueue.qsize(), dirQueue.qsize(), resultsQueue.qsize()))
             time.sleep(.1)
             if fileQueue.empty() and dirQueue.empty():
-                resultsQueue.put(("queue.csv", "", "\"%s\", \"%s\", \"%s\", \"%s\"\n"%(args.queueParams['max'], fileQueue.qsize(), dirQueue.qsize(), resultsQueue.qsize())))
+                queueMsg("\"%s\", \"%s\", \"%s\", \"%s\"\n"%(args.queueParams['max'], fileQueue.qsize(), dirQueue.qsize(), resultsQueue.qsize()))
                 dirQueue.join()
                 fileQueue.join()
                 terminateThreads = True
