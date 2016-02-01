@@ -3,14 +3,14 @@
 # ArkCargo - mkcargo
 #
 # MIT License, 
-# the code to claculate a file MD5 checksum is based on code from 
+# the code to calculate a file MD5 checksum is based on code from 
 # https://github.com/joswr1ght/md5deep/blob/master/md5deep.py
 # 
 # @author Chris Pates <chris.pates@arkivum.com>
 # @copyright Arkivum Limited 2015
 
 
-import os, sys, hashlib, re, multiprocessing
+import os, sys, hashlib, re, multiprocessing, platform
 from Queue import Queue, LifoQueue
 from threading import Thread,current_thread
 import time, datetime, errno
@@ -44,6 +44,7 @@ parser.set_defaults(cargoExt = '.md5')
 parser.set_defaults(lastRunPad = 4)
 parser.set_defaults(lastRunPrefix = 'run')
 parser.set_defaults(snapshotEOL = '\n')
+parser.set_defaults(sys_uname = platform.uname())
 
 parser.add_argument('--version', action='version', version='%(prog)s 0.2.2b')
 
@@ -133,6 +134,15 @@ def queueDirs(path):
     resultsQueue.put(("dirs.queue", "", "%s%s"%(path, args.snapshotEOL)))
     return;
 
+def promptUser_yes_no(question):
+    reply = str(raw_input(question+' (y/n): ')).lower().strip()
+    if reply[0] == 'y':
+        return True
+    if reply[0] == 'n':
+        return False
+    else:
+        return yes_or_no(question)
+
 def listDir(path):
     fileList = []
     dirList = []
@@ -178,11 +188,12 @@ def prepOutput():
     filelist = []
     moveList = []
     copyList = []
+    args.saved = False
 
     # lets figure out what to do if there already files in the output directory
     if args.rework or args.resume:
         args.prepMode = 'append'
-    if args.clean:
+    elif args.clean:
         args.prepMode = 'clean'
 
     try:
@@ -195,8 +206,14 @@ def prepOutput():
                     dirlist.append(child)
                 elif os.path.isfile(childPath):
                     filelist.append(child)
+            if len(set(['files.queue', 'dirs.queue']) | set(filelist)) > 0:
+                args.saved = True
 
             if args.prepMode == 'clean':
+                if args.saved:
+                    if not promptUser_yes_no("This job has previously be run and store, are you sure you wish to delete it?"):
+                        print "To continue from saved state, add --resume" 
+                        exit(1)
                 for file in filelist:
                     os.remove(os.path.join(args.filebase, file))
                 for dir in dirlist:
@@ -537,6 +554,8 @@ def dirFull(dirQ, fileQ):
     elif not os.access(absPath, os.R_OK):
         errorMsg("Permission Denied: %s"%absPath)
         isFailed(relPath)
+    elif os.path.islink(absPath) and os.path.isdir(absPath):
+        isSymlink(relPath, os.path.realpath(absPath))	
     elif os.path.isdir(absPath):
         debugMsg("dirfull (%s) isDir-%s"%(current_thread().getName(), absPath))
 
@@ -915,6 +934,7 @@ if __name__ == '__main__':
         if args.debug:
             queueMsg("\"max\", \"file\", \"dir\", \"results\"")
         # lets just hang back and wait for the queues to empty
+        print "If you need to pause this job, press Ctrl-C once"
         while not terminateThreads:
             if args.debug:
                 queueMsg("\"%s\", \"%s\", \"%s\", \"%s\"\n"%(args.queueParams['max'], fileQueue.qsize(), dirQueue.qsize(), resultsQueue.qsize()))
@@ -931,10 +951,15 @@ if __name__ == '__main__':
                 exit(1)
     except KeyboardInterrupt:
         # Time to tell all the threads to bail out
+        print "The job is exiting and saving the current queue to disk."
+        print "Please be patient."
         terminateThreads = True
         while not fileQueue.empty():
            queueFiles(fileQueue.get())
+        print "file queue, saved..."
         while not dirQueue.empty():
            queueDirs(dirQueue.get())
+        print "directory queue, saved..."
         resultsQueue.join()
-        raise
+        print "waiting for file to close"
+        exit(1)
