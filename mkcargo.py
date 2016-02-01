@@ -3,14 +3,14 @@
 # ArkCargo - mkcargo
 #
 # MIT License, 
-# the code to claculate a file MD5 checksum is based on code from 
+# the code to calculate a file MD5 checksum is based on code from 
 # https://github.com/joswr1ght/md5deep/blob/master/md5deep.py
 # 
 # @author Chris Pates <chris.pates@arkivum.com>
 # @copyright Arkivum Limited 2015
 
 
-import os, sys, hashlib, re, multiprocessing
+import os, sys, hashlib, re, multiprocessing, platform
 from Queue import Queue, LifoQueue
 from threading import Thread,current_thread
 import time, datetime, errno
@@ -33,7 +33,7 @@ def toBytes(humanBytes):
 parser = argparse.ArgumentParser(prog='mkcargo.py', description='Analysis a filesystem and create a cargo file to drive an ingest job.')
 # Set consts that we want to know about but the user can not (at this time specify)
 parser.set_defaults(queueParams = {'max' : 100000, 'highWater' : 9000, 'lowWater' : 100})
-parser.set_defaults(outFiles = {'valid' : ['error.log', 'debug.log', 'failed', 'added', 'modified', 'unchanged', 'symlink', 'directory', 'config', 'cargo', 'removed', 'queue.csv'], 'preserve' : ['error.log', 'debug.log', 'failed', 'config', 'queue.csv'], 'append' : ['added', 'modified', 'unchanged', 'symlink', 'directory', 'removed', 'snapshot.csv', 'ingest.csv', 'cargo.csv'] })
+parser.set_defaults(outFiles = {'valid' : ['files.queue', 'dirs.queue', 'error.log', 'debug.log', 'failed', 'added', 'modified', 'unchanged', 'symlink', 'directory', 'config', 'cargo', 'removed', 'queue.csv'], 'preserve' : ['files.queue', 'dirs.queue', 'error.log', 'debug.log', 'failed', 'config', 'queue.csv'], 'append' : ['added', 'modified', 'unchanged', 'symlink', 'directory', 'removed', 'snapshot.csv', 'ingest.csv', 'cargo.csv'] })
 parser.set_defaults(includeStats = {'snapshot' : ['added', 'modified', 'unchanged'], 'ingest' : ['added', 'modified'], 'cargo': []})
 parser.set_defaults(statsBoundaries = os.path.join(os.path.dirname( os.path.realpath( __file__ )), 'boundaries.csv'))
 parser.set_defaults(executablePath = os.path.dirname( os.path.realpath( __file__ )))
@@ -44,8 +44,9 @@ parser.set_defaults(cargoExt = '.md5')
 parser.set_defaults(lastRunPad = 4)
 parser.set_defaults(lastRunPrefix = 'run')
 parser.set_defaults(snapshotEOL = '\n')
+parser.set_defaults(sys_uname = platform.uname())
 
-parser.add_argument('--version', action='version', version='%(prog)s 0.2.1')
+parser.add_argument('--version', action='version', version='%(prog)s 0.2.2b')
 
 parser.add_argument('-s', dest='followSymlink', action='store_true', help='follow symlinks and ingest their target, defaults to recording symlinks and their targets in the symlink file.')
 
@@ -61,6 +62,7 @@ parser.add_argument('-cargoMax', dest='cargoMax', default='5TB', help=argparse.S
 
 parser.add_argument('--exists', dest='prepMode', choices=['clean', 'preserve', 'append'], default='preserve', help=argparse.SUPPRESS)
 parser.add_argument('--clean', action='store_true', help='if output directory exists delete its contents before process, by default previous output is preserved.')
+parser.add_argument('--resume', action='store_true', help='if files.queue and dirs.queue restore the queue states and set append mode.')
 parser.add_argument('--debug', dest='debug', action='store_true', help=argparse.SUPPRESS)
 
 parser.add_argument('--stats', dest='cargo', action='store_false', help='calculate stats (does not generate a cargo file)')
@@ -124,6 +126,23 @@ def isSymlink(path, target):
     resultsQueue.put(("symlink", "", "%s %s%s"%(path, target, args.snapshotEOL)))
     return;
 
+def queueFiles(path):
+    resultsQueue.put(("files.queue", "", "%s%s"%(path, args.snapshotEOL)))
+    return;
+
+def queueDirs(path):
+    resultsQueue.put(("dirs.queue", "", "%s%s"%(path, args.snapshotEOL)))
+    return;
+
+def promptUser_yes_no(question):
+    reply = str(raw_input(question+' (y/n): ')).lower().strip()
+    if reply[0] == 'y':
+        return True
+    if reply[0] == 'n':
+        return False
+    else:
+        return yes_or_no(question)
+
 def listDir(path):
     fileList = []
     dirList = []
@@ -169,11 +188,12 @@ def prepOutput():
     filelist = []
     moveList = []
     copyList = []
+    args.saved = False
 
     # lets figure out what to do if there already files in the output directory
-    if args.rework:
+    if args.rework or args.resume:
         args.prepMode = 'append'
-    if args.clean:
+    elif args.clean:
         args.prepMode = 'clean'
 
     try:
@@ -186,8 +206,14 @@ def prepOutput():
                     dirlist.append(child)
                 elif os.path.isfile(childPath):
                     filelist.append(child)
+            if len(set(['files.queue', 'dirs.queue']) | set(filelist)) > 0:
+                args.saved = True
 
             if args.prepMode == 'clean':
+                if args.saved:
+                    if not promptUser_yes_no("This job has previously be run and store, are you sure you wish to delete it?"):
+                        print "To continue from saved state, add --resume" 
+                        exit(1)
                 for file in filelist:
                     os.remove(os.path.join(args.filebase, file))
                 for dir in dirlist:
@@ -209,6 +235,11 @@ def prepOutput():
                     shutil.move(os.path.join(args.filebase, file), lastRun)
                 for file in copyList:
                     shutil.copy2(os.path.join(args.filebase, file), lastRun)
+                
+                if args.resume:
+                    dirsResume = os.path.join(lastRun, 'dirs.queue')
+                    filesResume = os.path.join(lastRun, 'dirs.queue')
+                    args.resumeQueues = [ dirsResume, filesResume ]
         else:
             os.makedirs(args.filebase)
     except ValueError:
@@ -523,6 +554,8 @@ def dirFull(dirQ, fileQ):
     elif not os.access(absPath, os.R_OK):
         errorMsg("Permission Denied: %s"%absPath)
         isFailed(relPath)
+    elif os.path.islink(absPath) and os.path.isdir(absPath):
+        isSymlink(relPath, os.path.realpath(absPath))	
     elif os.path.isdir(absPath):
         debugMsg("dirfull (%s) isDir-%s"%(current_thread().getName(), absPath))
 
@@ -789,6 +822,8 @@ def primeQueues(fileQueue, dirQueue):
         fileList += args.rework
     if args.file:
         fileList += args.file
+    if args.resume:
+       fileList = args.resumeQueues    
     if len(fileList):
         try:
             for pathFile in fileList:
@@ -899,6 +934,7 @@ if __name__ == '__main__':
         if args.debug:
             queueMsg("\"max\", \"file\", \"dir\", \"results\"")
         # lets just hang back and wait for the queues to empty
+        print "If you need to pause this job, press Ctrl-C once"
         while not terminateThreads:
             if args.debug:
                 queueMsg("\"%s\", \"%s\", \"%s\", \"%s\"\n"%(args.queueParams['max'], fileQueue.qsize(), dirQueue.qsize(), resultsQueue.qsize()))
@@ -915,5 +951,15 @@ if __name__ == '__main__':
                 exit(1)
     except KeyboardInterrupt:
         # Time to tell all the threads to bail out
+        print "The job is exiting and saving the current queue to disk."
+        print "Please be patient."
         terminateThreads = True
-        raise
+        while not fileQueue.empty():
+           queueFiles(fileQueue.get())
+        print "file queue, saved..."
+        while not dirQueue.empty():
+           queueDirs(dirQueue.get())
+        print "directory queue, saved..."
+        resultsQueue.join()
+        print "waiting for file to close"
+        exit(1)
