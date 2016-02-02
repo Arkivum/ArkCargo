@@ -46,7 +46,7 @@ parser.set_defaults(lastRunPrefix = 'run')
 parser.set_defaults(snapshotEOL = '\n')
 parser.set_defaults(sys_uname = platform.uname())
 
-parser.add_argument('--version', action='version', version='%(prog)s 0.2.2')
+parser.add_argument('--version', action='version', version='%(prog)s 0.2.3')
 
 parser.add_argument('-s', dest='followSymlink', action='store_true', help='follow symlinks and ingest their target, defaults to recording symlinks and their targets in the symlink file.')
 
@@ -188,13 +188,8 @@ def prepOutput():
     filelist = []
     moveList = []
     copyList = []
-    args.saved = False
+    savedState = False
 
-    # lets figure out what to do if there already files in the output directory
-    if args.rework or args.resume:
-        args.prepMode = 'append'
-    elif args.clean:
-        args.prepMode = 'clean'
 
     try:
         if os.path.isdir(args.filebase):
@@ -206,14 +201,27 @@ def prepOutput():
                     dirlist.append(child)
                 elif os.path.isfile(childPath):
                     filelist.append(child)
+
             if len(set(['files.queue', 'dirs.queue']) | set(filelist)) > 0:
-                args.saved = True
+                savedState = True
+
+            # lets figure out what to do if there already files in the output directory
+            if args.rework or args.resume:
+                args.prepMode = 'append'
+            elif args.clean:
+                if savedState:
+                    if not promptUser_yes_no("This job has previously be run and its stated store, are you sure you wish to delete it?"):
+                        if promptUser_yes_no("Would you like to override the --clean and resume the previous run?"):
+                            args.prepMode = 'append'
+                            args.resume = True
+                        else:
+                            exit(1)        
+                    else:
+                        args.prepMode = 'clean'
+                else:
+                    args.prepMode = 'clean'
 
             if args.prepMode == 'clean':
-                if args.saved:
-                    if not promptUser_yes_no("This job has previously be run and store, are you sure you wish to delete it?"):
-                        print "To continue from saved state, add --resume" 
-                        exit(1)
                 for file in filelist:
                     os.remove(os.path.join(args.filebase, file))
                 for dir in dirlist:
@@ -236,7 +244,8 @@ def prepOutput():
                 for file in copyList:
                     shutil.copy2(os.path.join(args.filebase, file), lastRun)
                 
-                if args.resume:
+                if savedState:
+                    print "resuming state from previous run"
                     dirsResume = os.path.join(lastRun, 'dirs.queue')
                     filesResume = os.path.join(lastRun, 'dirs.queue')
                     args.resumeQueues = [ dirsResume, filesResume ]
@@ -278,7 +287,7 @@ def prepStats():
     # load stats boundaries
     boundaries, fields = loadBoundaries( args.statsBoundaries )
 
-    if args.rework:
+    if args.prepMode == 'append':
         stats = loadStats(fields)
     else:
         stats = initStats(fields)
@@ -954,12 +963,20 @@ if __name__ == '__main__':
         print "The job is exiting and saving the current queue to disk."
         print "Please be patient."
         terminateThreads = True
+        print "saving file queue state..."
         while not fileQueue.empty():
            queueFiles(fileQueue.get())
-        print "file queue, saved..."
+        print "file queue state saved."
+        print "saving directory queue state..."
         while not dirQueue.empty():
            queueDirs(dirQueue.get())
-        print "directory queue, saved..."
+        print "directory queue state saved."
+        print "waiting for threads to complete."
         resultsQueue.join()
-        print "waiting for file to close"
+        print "all threads have completed."
+        print "exporting stats."
+        exportStats()
+        print "stats saved."
+        for file in fileHandles:
+            fileHandles[file].close()
         exit(1)
