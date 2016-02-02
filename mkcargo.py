@@ -154,7 +154,7 @@ def listDir(path):
     # unpredictable results, like an empty listing. 
     os.chdir(path)
     listing = os.listdir('path')
-    debugMsg("listDir (%s) - %s"%(current_thread().getName(), listing))
+    debugMsg("listDir (%s) - %s items"%(current_thread().getName(), len(listing)))
 
     for child in listing:
         childPath = os.path.join(path, child)
@@ -575,7 +575,7 @@ def dirFull(dirQ, fileQ):
             attempt += 1
             listing = os.listdir(absPath)
             if len(listing) > 0:
-                debugMsg("dirFull (%s) attempt %s - %s"%(current_thread().getName(), attempt, listing))
+                debugMsg("dirFull (%s) attempt %s - %s items"%(current_thread().getName(), attempt, len(listing)))
                 break;
             else: 
                 debugMsg("dirFull (%s) - empty directory?"%current_thread().getName())
@@ -692,7 +692,7 @@ def dirIncr(dirQ, fileQ):
             attempt += 1
             listingNew = os.listdir(absPath)
             if len(listingNew) > 0:
-                debugMsg("dirIncr (%s) attempt %s - %s"%(current_thread().getName(), attempt, listingNew))
+                debugMsg("dirIncr (%s) attempt %s - %s items"%(current_thread().getName(), attempt, len(listingNew)))
                 break;
             else: 
                 debugMsg("dirIncr (%s) - empty directory?"%current_thread().getName())
@@ -704,7 +704,7 @@ def dirIncr(dirQ, fileQ):
             else: 
                 os.chdir(oldPath)
                 listingOld = os.listdir(oldPath)
-                debugMsg("dirIncr (%s) old - %s"%(current_thread().getName(), listingOld))
+                debugMsg("dirIncr (%s) old - %s items"%(current_thread().getName(), len(listingOld)))
                 for removed in list(set(listingOld).difference(listingNew)):
                     isRemoved(os.path.join(relPath, removed), os.path.getsize(oldPath))
 
