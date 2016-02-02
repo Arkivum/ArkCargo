@@ -46,7 +46,7 @@ parser.set_defaults(lastRunPrefix = 'run')
 parser.set_defaults(snapshotEOL = '\n')
 parser.set_defaults(sys_uname = platform.uname())
 
-parser.add_argument('--version', action='version', version='%(prog)s 0.2.2b')
+parser.add_argument('--version', action='version', version='%(prog)s 0.2.2')
 
 parser.add_argument('-s', dest='followSymlink', action='store_true', help='follow symlinks and ingest their target, defaults to recording symlinks and their targets in the symlink file.')
 
