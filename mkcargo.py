@@ -46,7 +46,7 @@ parser.set_defaults(lastRunPrefix = 'run')
 parser.set_defaults(snapshotEOL = '\n')
 parser.set_defaults(sys_uname = platform.uname())
 
-parser.add_argument('--version', action='version', version='%(prog)s 0.2.3')
+parser.add_argument('--version', action='version', version='%(prog)s 0.2.4')
 
 parser.add_argument('-s', dest='followSymlink', action='store_true', help='follow symlinks and ingest their target, defaults to recording symlinks and their targets in the symlink file.')
 
@@ -532,19 +532,24 @@ def snapshotFull(i, f, d):
 # 
 def fileFull(fileQ):
     relPath = fileQ.get()
-    absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
+    try:
+        absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
 
-    debugMsg("fileFull (%s)- %s"%(current_thread().getName(), relPath))
+        debugMsg("fileFull (%s)- %s"%(current_thread().getName(), relPath))
 
-    if not os.access(absPath, os.R_OK):
-        errorMsg("Permission Denied: %s"%absPath)
-        isFailed(relPath)
-    else:
-        if (not args.followSymlink) and os.path.islink(absPath):
-            isSymlink(relPath, os.path.realpath(absPath))
+        if not os.access(absPath, os.R_OK):
+            errorMsg("Permission Denied: %s"%absPath)
+            isFailed(relPath)
         else:
-            isAdded(relPath, os.path.getsize(absPath))
-            cargoEntry(relPath)
+            if (not args.followSymlink) and os.path.islink(absPath):
+                isSymlink(relPath, os.path.realpath(absPath))
+            else:
+                isAdded(relPath, os.path.getsize(absPath))
+                cargoEntry(relPath)
+    except IOError as e:
+        errorMsg("%s %s"%(e, absPath))
+        isFailed(path)
+        pass
     fileQ.task_done()
     return;
 
@@ -553,53 +558,57 @@ def fileFull(fileQ):
 def dirFull(dirQ, fileQ):
     leafNode = True
     relPath = dirQ.get()
-    absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
+    try:
+        absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
 
-    debugMsg("dirfull (%s)- %s"%(current_thread().getName(), relPath))
+        debugMsg("dirfull (%s)- %s"%(current_thread().getName(), relPath))
 
-    if not os.path.exists(absPath):
-        errorMsg("Path does not exist: %s"%absPath)
-        isFailed(relPath)
-    elif not os.access(absPath, os.R_OK):
-        errorMsg("Permission Denied: %s"%absPath)
-        isFailed(relPath)
-    elif os.path.islink(absPath) and os.path.isdir(absPath):
-        isSymlink(relPath, os.path.realpath(absPath))	
-    elif os.path.isdir(absPath):
-        debugMsg("dirfull (%s) isDir-%s"%(current_thread().getName(), absPath))
+        if not os.path.exists(absPath):
+            errorMsg("Path does not exist: %s"%absPath)
+            isFailed(relPath)
+        elif not os.access(absPath, os.R_OK):
+            errorMsg("Permission Denied: %s"%absPath)
+            isFailed(relPath)
+        elif os.path.islink(absPath) and os.path.isdir(absPath):
+            isSymlink(relPath, os.path.realpath(absPath))	
+        elif os.path.isdir(absPath):
+            debugMsg("dirfull (%s) isDir-%s"%(current_thread().getName(), absPath))
 
-        tries = 6
-        attempt = 0
+            tries = 6
+            attempt = 0
         
-        while (attempt < tries):
-            attempt += 1
-            listing = os.listdir(absPath)
-            if len(listing) > 0:
-                debugMsg("dirFull (%s) attempt %s - %s items"%(current_thread().getName(), attempt, len(listing)))
-                break;
-            else: 
-                debugMsg("dirFull (%s) - empty directory?"%current_thread().getName())
-                time.sleep(1)       
+            while (attempt < tries):
+                attempt += 1
+                listing = os.listdir(absPath)
+                if len(listing) > 0:
+                    debugMsg("dirFull (%s) attempt %s - %s items"%(current_thread().getName(), attempt, len(listing)))
+                    break;
+                else: 
+                    debugMsg("dirFull (%s) - empty directory?"%current_thread().getName())
+                    time.sleep(1)       
 
-        for childItem in listing:
-            childAbs = os.path.abspath(os.path.join(absPath, childItem))
-            childRel = os.path.join(relPath, childItem)
-            debugMsg("dirFull (%s)- %s"%(current_thread().getName(), childRel))
-            if os.path.isdir(childAbs):
-                leafNode = False
-                dirQ.put(childRel)
-                debugMsg("dirQueue.put (%s)- %s"%(current_thread().getName(), childRel))
-            elif os.path.isfile(childAbs):
-                fileQ.put(childRel)
-                debugMsg("fileQueue.put (%s)- %s"%(current_thread().getName(), childRel))
-            else:
-                isFailed(childRel)
-                errorMsg("is not file, dir or symlink? - %s"%childRel)
+            for childItem in listing:
+                childAbs = os.path.abspath(os.path.join(absPath, childItem))
+                childRel = os.path.join(relPath, childItem)
+                debugMsg("dirFull (%s)- %s"%(current_thread().getName(), childRel))
+                if os.path.isdir(childAbs):
+                    leafNode = False
+                    dirQ.put(childRel)
+                    debugMsg("dirQueue.put (%s)- %s"%(current_thread().getName(), childRel))
+                elif os.path.isfile(childAbs):
+                    fileQ.put(childRel)
+                    debugMsg("fileQueue.put (%s)- %s"%(current_thread().getName(), childRel))
+                else:
+                    isFailed(childRel)
+                    errorMsg("is not file, dir or symlink? - %s"%childRel)
 
-        if leafNode:
-            # must be leaf node lets record it
-            isDirectory(relPath)
-
+            if leafNode:
+                # must be leaf node lets record it
+                isDirectory(relPath)
+    except IOError as e:
+        errorMsg("%s %s"%(e, absPath))
+        isFailed(path)
+        pass
     dirQ.task_done()
     return;
 
@@ -636,33 +645,38 @@ def snapshotIncr(i, f, d):
 #
 def fileIncr(fileQ):
     relPath = fileQ.get()
-    absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
-    oldPath = os.path.abspath(os.path.join(args.snapshotPrevious, relPath))
+    try:
+        absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
+        oldPath = os.path.abspath(os.path.join(args.snapshotPrevious, relPath))
 
-    debugMsg("fileIncr (%s)- %s"%(current_thread().getName(), absPath))
+        debugMsg("fileIncr (%s)- %s"%(current_thread().getName(), absPath))
 
-    if not os.access(absPath, os.R_OK):
-        errorMsg("Permission Denied; %s"%absPath)
-        isFailed(relPath)
-    elif (not args.followSymlink) and os.path.islink(absPath):
-        debugMsg("fileIncr (%s) isSymlink- %s"%(current_thread().getName(), relPath))
-        isSymlink(relPath, os.path.realpath(absPath))
-    else:
-        if os.path.isfile(oldPath):
-            if not os.access(oldPath, os.R_OK):
-                errorMsg("Permission Denied; %s"%oldPath)
-                isFailed(relPath)
-            elif filecmp.cmp(oldPath, absPath):
-                debugMsg("fileIncr (%s) isUnchanged- %s"%(current_thread().getName(), relPath))
-                isUnchanged(relPath, os.path.getsize(absPath))
-            else:
-                debugMsg("fileIncr (%s) isModified- %s"%(current_thread().getName(), relPath))
-                isModified(relPath, os.path.getsize(absPath))
+        if not os.access(absPath, os.R_OK):
+            errorMsg("Permission Denied; %s"%absPath)
+            isFailed(relPath)
+        elif (not args.followSymlink) and os.path.islink(absPath):
+            debugMsg("fileIncr (%s) isSymlink- %s"%(current_thread().getName(), relPath))
+            isSymlink(relPath, os.path.realpath(absPath))
+        else:
+            if os.path.isfile(oldPath):
+                if not os.access(oldPath, os.R_OK):
+                    errorMsg("Permission Denied; %s"%oldPath)
+                    isFailed(relPath)
+                elif filecmp.cmp(oldPath, absPath):
+                    debugMsg("fileIncr (%s) isUnchanged- %s"%(current_thread().getName(), relPath))
+                    isUnchanged(relPath, os.path.getsize(absPath))
+                else:
+                    debugMsg("fileIncr (%s) isModified- %s"%(current_thread().getName(), relPath))
+                    isModified(relPath, os.path.getsize(absPath))
+                    cargoEntry(relPath)
+            else:    
+                debugMsg("fileIncr (%s) isAdded- %s"%(current_thread().getName(), relPath))
+                isAdded(relPath, os.path.getsize(absPath))
                 cargoEntry(relPath)
-        else:    
-            debugMsg("fileIncr (%s) isAdded- %s"%(current_thread().getName(), relPath))
-            isAdded(relPath, os.path.getsize(absPath))
-            cargoEntry(relPath)
+    except IOError as e:
+        errorMsg("%s %s"%(e, absPath))
+        isFailed(path)
+        pass
     fileQ.task_done()
     return;
 
@@ -672,64 +686,66 @@ def fileIncr(fileQ):
 def dirIncr(dirQ, fileQ):
     leafNode = True
     relPath = dirQ.get()
-    absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
-    oldPath = os.path.abspath(os.path.join(args.snapshotPrevious, relPath))
-
-    
-    debugMsg("dirIncr (%s)- %s"%(current_thread().getName(), relPath))
-    if not os.access(absPath, os.R_OK):
-        errorMsg("Permission Denied; %s"%absPath)
-        isFailed(relPath)
-    elif (not args.followSymlink) and os.path.islink(absPath):
+    try:
+        absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
+        oldPath = os.path.abspath(os.path.join(args.snapshotPrevious, relPath))
+        debugMsg("dirIncr (%s)- %s"%(current_thread().getName(), relPath))
+        if not os.access(absPath, os.R_OK):
+            errorMsg("Permission Denied; %s"%absPath)
+            isFailed(relPath)
+        elif (not args.followSymlink) and os.path.islink(absPath):
             isSymlink(relPath, os.path.realpath(absPath))
-    elif os.path.isdir(absPath):
-        debugMsg("dirIncr (%s)- %s"%(current_thread().getName(), absPath))
+        elif os.path.isdir(absPath):
+            debugMsg("dirIncr (%s)- %s"%(current_thread().getName(), absPath))
 
-        tries = 6
-        attempt = 0
+            tries = 6
+            attempt = 0
 
-        while (attempt < tries):
-            attempt += 1
-            listingNew = os.listdir(absPath)
-            if len(listingNew) > 0:
-                debugMsg("dirIncr (%s) attempt %s - %s items"%(current_thread().getName(), attempt, len(listingNew)))
-                break;
-            else: 
-                debugMsg("dirIncr (%s) - empty directory?"%current_thread().getName())
+            while (attempt < tries):
+                attempt += 1
+                listingNew = os.listdir(absPath)
+                if len(listingNew) > 0:
+                    debugMsg("dirIncr (%s) attempt %s - %s items"%(current_thread().getName(), attempt, len(listingNew)))
+                    break;
+                else: 
+                    debugMsg("dirIncr (%s) - empty directory?"%current_thread().getName())
 
-        if os.path.isdir(oldPath):
-            if not os.access(oldPath, os.R_OK):
-                errorMsg("Permission Denied; %s"%oldPath)
-                isFailed(relPath)
-            else: 
-                os.chdir(oldPath)
-                listingOld = os.listdir(oldPath)
-                debugMsg("dirIncr (%s) old - %s items"%(current_thread().getName(), len(listingOld)))
-                for removed in list(set(listingOld).difference(listingNew)):
-                    isRemoved(os.path.join(relPath, removed), os.path.getsize(oldPath))
+            if os.path.isdir(oldPath):
+                if not os.access(oldPath, os.R_OK):
+                    errorMsg("Permission Denied; %s"%oldPath)
+                    isFailed(relPath)
+                else: 
+                    os.chdir(oldPath)
+                    listingOld = os.listdir(oldPath)
+                    debugMsg("dirIncr (%s) old - %s items"%(current_thread().getName(), len(listingOld)))
+                    for removed in list(set(listingOld).difference(listingNew)):
+                        isRemoved(os.path.join(relPath, removed), os.path.getsize(oldPath))
 
-        for childItem in listingNew:
-            childAbs = os.path.abspath(os.path.join(absPath, childItem))
-            childRel = os.path.join(relPath, childItem)
-            debugMsg("dirIncr (%s)- %s"%(current_thread().getName(), childItem))
-            if os.path.isdir(childAbs):
-                leafNode = False
-                dirQ.put(childRel)
-                debugMsg("dirQueue.put (%s)- %s"%(current_thread().getName(), childRel))
-            elif os.path.isfile(childAbs):
-                fileQ.put(childRel)
-                debugMsg("fileQueue.put (%s)- %s"%(current_thread().getName(), childRel))
-            else:
-                isFailed(childRel)
-                errorMsg("is not file, dir or symlink? - %s"%childRel)
+            for childItem in listingNew:
+                childAbs = os.path.abspath(os.path.join(absPath, childItem))
+                childRel = os.path.join(relPath, childItem)
+                debugMsg("dirIncr (%s)- %s"%(current_thread().getName(), childItem))
+                if os.path.isdir(childAbs):
+                    leafNode = False
+                    dirQ.put(childRel)
+                    debugMsg("dirQueue.put (%s)- %s"%(current_thread().getName(), childRel))
+                elif os.path.isfile(childAbs):
+                    fileQ.put(childRel)
+                    debugMsg("fileQueue.put (%s)- %s"%(current_thread().getName(), childRel))
+                else:
+                    isFailed(childRel)
+                    errorMsg("is not file, dir or symlink? - %s"%childRel)
 
-        if leafNode:
-            # must be leaf node lets record it
-            isDirectory(relPath)
-    else:
-        debugMsg("fileQueue.put (%s)- file in dirQueue %s"%(current_thread().getName(), relPath))
-        fileQ.put(relPath)
-    
+            if leafNode:
+                # must be leaf node lets record it
+                isDirectory(relPath)
+        else:
+            debugMsg("fileQueue.put (%s)- file in dirQueue %s"%(current_thread().getName(), relPath))
+            fileQ.put(relPath)
+    except IOError as e:
+        errorMsg("%s %s"%(e, absPath))
+        isFailed(path)
+        pass
     dirQueue.task_done()
     return;
 
@@ -766,21 +782,25 @@ def snapshotExplicit(i, f, d):
 #
 def fileExplicit(fileQ):
     absPath = fileQ.get()
-
     debugMsg("fileExplicit (%s)- %s"%(current_thread().getName(), absPath))
 
-    if not os.path.exists(absPath):
-        errorMsg("Does not exist; %s"%absPath)
-        isFailed(absPath)
-    elif not os.access(absPath, os.R_OK):
-        errorMsg("Permission Denied; %s"%absPath)
-        isFailed(absPath)
-    else:
-        if (not args.followSymlink) and os.path.islink(absPath):
-            isSymlink(absPath, os.path.realpath(absPath))
+    try:
+        if not os.path.exists(absPath):
+            errorMsg("Does not exist; %s"%absPath)
+            isFailed(absPath)
+        elif not os.access(absPath, os.R_OK):
+            errorMsg("Permission Denied; %s"%absPath)
+            isFailed(absPath)
         else:
-            isAdded(absPath, os.path.getsize(absPath))
-            cargoEntry(absPath)
+            if (not args.followSymlink) and os.path.islink(absPath):
+                isSymlink(absPath, os.path.realpath(absPath))
+            else:
+                isAdded(absPath, os.path.getsize(absPath))
+                cargoEntry(absPath)
+    except IOError as e:
+        errorMsg("%s %s"%(e, absPath))
+        isFailed(path)
+        pass
     fileQ.task_done()
     return;
 
@@ -789,34 +809,38 @@ def fileExplicit(fileQ):
 #
 def dirExplicit(dirQ, fileQ):
     absPath = dirQ.get()
-
     debugMsg("dirExplicit (%s)- %s"%(current_thread().getName(), absPath))
 
-    if not os.path.exists(absPath):
-        errorMsg("Does not exist; %s"%absPath)
-        isFailed(absPath)
-    elif not os.access(absPath, os.R_OK):
-        errorMsg("Permission Denied: %s"%absPath)
-        isFailed(absPath)
-    elif os.path.isdir(absPath):
-        dirs, files = listDir(absPath)
-        debugMsg("dirs %s %s"%(absPath, dirs))
-        debugMsg("files %s %s"%(absPath, files))
+    try:
+        if not os.path.exists(absPath):
+            errorMsg("Does not exist; %s"%absPath)
+            isFailed(absPath)
+        elif not os.access(absPath, os.R_OK):
+            errorMsg("Permission Denied: %s"%absPath)
+            isFailed(absPath)
+        elif os.path.isdir(absPath):
+            dirs, files = listDir(absPath)
+            debugMsg("dirs %s %s"%(absPath, dirs))
+            debugMsg("files %s %s"%(absPath, files))
 
-        if len(dirs) > 0:
-            for childPath in dirs:
-                dirQ.put(os.path.join(absPath, childPath))
-                debugMsg("dirQueue.put (%s)- %s"%(current_thread().getName(), os.path.join(absPath, childPath)))
+            if len(dirs) > 0:
+                for childPath in dirs:
+                    dirQ.put(os.path.join(absPath, childPath))
+                    debugMsg("dirQueue.put (%s)- %s"%(current_thread().getName(), os.path.join(absPath, childPath)))
+            else:
+                # must be leaf node lets record it
+                isDirectory(absPath)
+
+            for childPath in files:
+                fileQ.put(os.path.join(absPath, childPath))
+                debugMsg("fileQueue.put (%s)- %s"%(current_thread().getName(), os.path.join(absPath, childPath)))
         else:
-            # must be leaf node lets record it
-            isDirectory(absPath)
-
-        for childPath in files:
-            fileQ.put(os.path.join(absPath, childPath))
-            debugMsg("fileQueue.put (%s)- %s"%(current_thread().getName(), os.path.join(absPath, childPath)))
-    else:
-        debugMsg("fileQueue.put (%s)- file in dirQueue %s"%(current_thread().getName(), absPath))
-        fileQ.put(absPath)
+            debugMsg("fileQueue.put (%s)- file in dirQueue %s"%(current_thread().getName(), absPath))
+            fileQ.put(absPath)
+    except IOError as e:
+        errorMsg("%s %s"%(e, absPath))
+        isFailed(path)
+        pass
     dirQ.task_done()
     return;
 
