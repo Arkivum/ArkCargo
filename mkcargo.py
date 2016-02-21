@@ -493,7 +493,7 @@ def cargoEntry(path):
             hash = hash.hexdigest().replace(" ","")
             resultsQueue.put(("cargo", os.path.getsize(absPath), "%s  %s%s"%(hash, absPath, args.cargoEOL)))
 
-        except IOError as e:
+        except (IOError, OSError) as e:
             errorMsg("%s %s"%(e, absPath))
             isFailed(path)
             pass
@@ -546,7 +546,7 @@ def fileFull(fileQ):
             else:
                 isAdded(relPath, os.path.getsize(absPath))
                 cargoEntry(relPath)
-    except IOError as e:
+    except (IOError, OSError) as e:
         errorMsg("%s %s"%(e, absPath))
         isFailed(path)
         pass
@@ -605,7 +605,7 @@ def dirFull(dirQ, fileQ):
             if leafNode:
                 # must be leaf node lets record it
                 isDirectory(relPath)
-    except IOError as e:
+    except (IOError, OSError) as e:
         errorMsg("%s %s"%(e, absPath))
         isFailed(path)
         pass
@@ -673,7 +673,7 @@ def fileIncr(fileQ):
                 debugMsg("fileIncr (%s) isAdded- %s"%(current_thread().getName(), relPath))
                 isAdded(relPath, os.path.getsize(absPath))
                 cargoEntry(relPath)
-    except IOError as e:
+    except (IOError, OSError) as e:
         errorMsg("%s %s"%(e, absPath))
         isFailed(path)
         pass
@@ -742,7 +742,7 @@ def dirIncr(dirQ, fileQ):
         else:
             debugMsg("fileQueue.put (%s)- file in dirQueue %s"%(current_thread().getName(), relPath))
             fileQ.put(relPath)
-    except IOError as e:
+    except (IOError, OSError) as e:
         errorMsg("%s %s"%(e, absPath))
         isFailed(path)
         pass
@@ -797,7 +797,7 @@ def fileExplicit(fileQ):
             else:
                 isAdded(absPath, os.path.getsize(absPath))
                 cargoEntry(absPath)
-    except IOError as e:
+    except (IOError, OSError) as e:
         errorMsg("%s %s"%(e, absPath))
         isFailed(path)
         pass
@@ -837,7 +837,7 @@ def dirExplicit(dirQ, fileQ):
         else:
             debugMsg("fileQueue.put (%s)- file in dirQueue %s"%(current_thread().getName(), absPath))
             fileQ.put(absPath)
-    except IOError as e:
+    except (IOError, OSError) as e:
         errorMsg("%s %s"%(e, absPath))
         isFailed(path)
         pass
