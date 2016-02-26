@@ -46,7 +46,7 @@ parser.set_defaults(lastRunPrefix = 'run')
 parser.set_defaults(snapshotEOL = '\n')
 parser.set_defaults(sys_uname = platform.uname())
 
-parser.add_argument('--version', action='version', version='%(prog)s 0.2.4')
+parser.add_argument('--version', action='version', version='%(prog)s 0.2.5')
 
 parser.add_argument('-s', dest='followSymlink', action='store_true', help='follow symlinks and ingest their target, defaults to recording symlinks and their targets in the symlink file.')
 
@@ -607,7 +607,7 @@ def dirFull(dirQ, fileQ):
                 isDirectory(relPath)
     except (IOError, OSError) as e:
         errorMsg("%s %s"%(e, absPath))
-        isFailed(path)
+        isFailed(relPath)
         pass
     dirQ.task_done()
     return;
@@ -660,8 +660,9 @@ def fileIncr(fileQ):
         else:
             if os.path.isfile(oldPath):
                 if not os.access(oldPath, os.R_OK):
-                    errorMsg("Permission Denied; %s"%oldPath)
-                    isFailed(relPath)
+                    errorMsg("Permission Denied (assuming Modified); %s"%oldPath)
+                    isAdded(relPath, os.path.getsize(absPath))
+                    cargoEntry(relPath)
                 elif filecmp.cmp(oldPath, absPath):
                     debugMsg("fileIncr (%s) isUnchanged- %s"%(current_thread().getName(), relPath))
                     isUnchanged(relPath, os.path.getsize(absPath))
@@ -675,7 +676,7 @@ def fileIncr(fileQ):
                 cargoEntry(relPath)
     except (IOError, OSError) as e:
         errorMsg("%s %s"%(e, absPath))
-        isFailed(path)
+        isFailed(relPath)
         pass
     fileQ.task_done()
     return;
@@ -712,10 +713,8 @@ def dirIncr(dirQ, fileQ):
 
             if os.path.isdir(oldPath):
                 if not os.access(oldPath, os.R_OK):
-                    errorMsg("Permission Denied; %s"%oldPath)
-                    isFailed(relPath)
+                    errorMsg("Permission Denied (assuming Modified); %s"%oldPath)
                 else: 
-                    os.chdir(oldPath)
                     listingOld = os.listdir(oldPath)
                     debugMsg("dirIncr (%s) old - %s items"%(current_thread().getName(), len(listingOld)))
                     for removed in list(set(listingOld).difference(listingNew)):
@@ -744,7 +743,7 @@ def dirIncr(dirQ, fileQ):
             fileQ.put(relPath)
     except (IOError, OSError) as e:
         errorMsg("%s %s"%(e, absPath))
-        isFailed(path)
+        isFailed(relPath)
         pass
     dirQueue.task_done()
     return;
@@ -756,14 +755,6 @@ def snapshotExplicit(i, f, d):
     threadName =current_thread().getName()
     fileOnly = False if (i % 2) == 0 else True
     debugMsg("thread ident %s - fileOnly: %s"%(i, fileOnly))
-
-    if os.path.isdir(args.snapshotCurrent):
-        # This is necessary because when used with a VFS, just listing a path
-        # without stepping into the file system can have interesting and
-        # unpredictable results, like an empty listing.
-        os.chdir(args.snapshotCurrent)
-    else:
-        errorMsg("bad snapshot: %s"%args.snapshotCurrent)
 
     while not terminateThreads:
         if not f.empty():
@@ -839,7 +830,7 @@ def dirExplicit(dirQ, fileQ):
             fileQ.put(absPath)
     except (IOError, OSError) as e:
         errorMsg("%s %s"%(e, absPath))
-        isFailed(path)
+        isFailed(relPath)
         pass
     dirQ.task_done()
     return;
@@ -907,7 +898,7 @@ if __name__ == '__main__':
     resultsQueue = Queue(args.threads*args.queueParams['max'])
 
     try:
-        if len(args.snapshots) == 0:
+        if len(args.file) > 0:
             args.mode = 'explicit'
         elif len(args.snapshots) == 1:
             args.snapshotCurrent = args.snapshots[0]
