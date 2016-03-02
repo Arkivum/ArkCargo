@@ -1,0 +1,5 @@
+./tests
+./onlyinA
+./onlyinA.txt
+./sameinboth/onlyinA
+./sameinboth/onlyinA.txt
