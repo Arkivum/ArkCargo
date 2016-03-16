@@ -10,7 +10,7 @@
 
 import unittest2 as unittest
 
-import os, sys, filecmp
+import os, sys, filecmp, shutil
 sys.path.append('../arkcargo')      
 from snapshotstats import snapshotstats
 
@@ -24,10 +24,9 @@ class test_snapshotstats(unittest.TestCase):
     def tearDown(self):
         testname = self.testname.split(self.__class__.__name__+'_',1)[1]
         outputDir = os.path.join(os.getcwd(),'test_snapshotstats/', testname, 'output/')
-        print outputDir
         if os.path.exists(outputDir):
-           os.remove(os.path.join(outputDir, '*'))
-           os.rmdir(outputDir)
+           shutil.rmtree(outputDir)
+           os.mkdir(outputDir)
         pass
 
     def test_snapshotstats_loadboundaries_bad(self):
