@@ -18,7 +18,7 @@ import csv
 class snapshotstats:
 
     def __init__(self):
-        self.fields = {'category' : ''}
+        self.fields = {'Category' : ''}
         self.boundaries = []
         self.categories = []
         self.sets = {}
@@ -27,20 +27,20 @@ class snapshotstats:
         return;
 
     @classmethod
-    def initWithCategories(cls, boundariesFile, categories):
+    def initWithCategories(cls, boundariesFile, sets):
         initstats = snapshotstats()
         initstats.load_boundaries(boundariesFile)
-        initstats.add_categories(categories)
-        initstats.init()
+        initstats.add_sets(sets)
+        initstats.initStats()
         return initstats;
 
     @classmethod
-    def fromFile(cls, boundariesFile, categories, statsPath):
+    def fromFile(cls, boundariesFile, sets, statsPath):
         initstats = snapshotstats()
         initstats.load_boundaries(boundariesFile)
-        initstats.add_categories(categories)
-        initstats.load(statsPath)
-        return cls;
+        initstats.add_sets(sets)
+        initstats.loadStats(statsPath)
+        return initstats;
 
     def load_boundaries(self, boundariesFile):
         countfields = {}
@@ -59,7 +59,6 @@ class snapshotstats:
             sys.exit(-1)
 
         self.fields = ['Category'] + bytesfields.keys() + countfields.keys()
-
         return;
 
     def add_category(self, category):
@@ -68,7 +67,9 @@ class snapshotstats:
         return;
 
     def add_categories(self, categories):
-        self.categories = list(set(self.categories) | set(categories))
+        for category in categories:
+            if category not in self.categories:
+		self.categories.append(category)
         return;
 
     def add_set(self, name, setofcategories):
@@ -80,11 +81,11 @@ class snapshotstats:
 
     def add_sets(self, listofsets):
         for key in listofsets.keys():
-            self.add_categories(listofsets[key].values())
+            self.add_categories(listofsets[key])
             self.add_set(key, listofsets[key])
         return;
         
-    def load(self, statspath):
+    def loadStats(self, statspath):
         stats = {}
         fields =list(set(['Category']) | set(self.fields))
         # imports stats and boundaries, only relevant for 'rework' mode
@@ -109,19 +110,18 @@ class snapshotstats:
         return;
 
 
-    def init(self):
-        stats = {}
+    def initStats(self):
+        newStats = {}
 
         # imports boundaries and initialise stats
         for category in self.categories:
-            self.stats[category] = {}
+            newStats[category] = {}
             for field in self.fields:
                 if field == 'Category':
-                    self.stats[category]['Category'] = category
+                    newStats[category]['Category'] = category
                 else:   
-                    self.stats[category][field] = 0
-        self.stats = stats
-
+                    newStats[category][field] = 0
+        self.stats = newStats
         return;
 
 
@@ -137,24 +137,25 @@ class snapshotstats:
 
 
 
-    def export(self, set, filepath):
+    def export(self, set, outputPath):
         filemode = "wb"
         # exports stats based on categories listed in includeStats & includeStats 
         try:
-            for statSet in self.sets:
-                file = os.path.join(filepath,set,".csv")
-                with open(filepath, filemode) as csvfile:
-                    writer = csv.DictWriter(csvfile, fieldnames=statsFields)
-                    #writer.writeheader()
-                    fields = {}
-                    for field in self.sets['category']:
-                        fields[field] = field
-                    writer.writerow(fields)
-                    for category in args.includeStats[statSet]:
-                        writer.writerow(stats[category])
+            outputFile = os.path.join(outputPath,set+'.csv')
+            with open(outputFile, filemode) as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=self.fields)
+                fields = {}
+                for field in self.fields:
+                    fields[field] = field
+                writer.writerow(fields)
+                for category in self.sets[set]:
+                    writer.writerow(self.stats[category])
                  
         except ValueError:
             sys.stderr.write("Can't export stats to %s (error: %s)\n"%(filepath, ValueError))
         return;
-
-
+	
+    def exportAll(self, outputPath):
+        for set in self.sets.keys():
+            self.export(set, outputPath)
+        return;
