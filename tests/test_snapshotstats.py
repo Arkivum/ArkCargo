@@ -127,13 +127,85 @@ class test_snapshotstats(unittest.TestCase):
     def test_snapshotstats_write_stats(self):
         self.testname = sys._getframe().f_code.co_name
         writepath = os.path.join(os.getcwd(), 'test_snapshotstats/write_stats/output/')
-        knowngood = os.path.join(os.getcwd(), 'test_snapshotstats/write_stats/expected/snapshot.csv')
+        assertStatsFile = os.path.join(os.getcwd(), 'test_snapshotstats/write_stats/expected/snapshot.csv')
         boundarypath = os.path.join(os.getcwd(), 'test_snapshotstats/boundaries.csv')
         listCategories = {'snapshot' : ['added', 'modified', 'unchanged', 'removed']}
 
         self.snapshotstats = snapshotstats.initWithCategories(boundarypath, listCategories)
         self.snapshotstats.export('snapshot', writepath)
-        self.assertTrue(filecmp.cmp(os.path.join(writepath,"snapshot.csv"),  knowngood))
+        self.assertTrue(filecmp.cmp(os.path.join(writepath,"snapshot.csv"),  assertStatsFile))
         pass
 
+    def test_snapshotstats_update_stats(self):
+        self.testname = sys._getframe().f_code.co_name
+        writepath = os.path.join(os.getcwd(), 'test_snapshotstats/update_stats/output/')
+        assertStatsFile = os.path.join(os.getcwd(), 'test_snapshotstats/update_stats/expected/snapshot.csv')
+        boundarypath = os.path.join(os.getcwd(), 'test_snapshotstats/boundaries.csv')
+        listCategories = {'snapshot' : ['added', 'modified', 'unchanged', 'removed']}
+
+        self.snapshotstats = snapshotstats.initWithCategories(boundarypath, listCategories)
+        self.snapshotstats.update('added', 1)
+        self.snapshotstats.update('added', 1)
+        self.snapshotstats.update('added', 1)
+        self.snapshotstats.update('added', 1)
+        self.snapshotstats.update('added', 1)
+        self.snapshotstats.update('added', 50001)
+        self.snapshotstats.update('added', 50001)
+        self.snapshotstats.update('added', 50001)
+        self.snapshotstats.update('added', 50001)
+        self.snapshotstats.update('added', 50001)
+        self.snapshotstats.update('added', 100001)
+        self.snapshotstats.update('added', 100001)
+        self.snapshotstats.update('added', 100001)
+        self.snapshotstats.update('added', 100001)
+        self.snapshotstats.update('added', 100001)
+        self.snapshotstats.update('added', 250001)
+        self.snapshotstats.update('added', 250001)
+        self.snapshotstats.update('added', 250001)
+        self.snapshotstats.update('added', 250001)
+        self.snapshotstats.update('added', 500001)
+        self.snapshotstats.update('added', 500001)
+        self.snapshotstats.update('added', 500001)
+        self.snapshotstats.update('added', 500001)
+        self.snapshotstats.update('added', 750001)
+        self.snapshotstats.update('added', 750001)
+        self.snapshotstats.update('added', 750001)
+        self.snapshotstats.update('added', 750001)
+        self.snapshotstats.update('added', 1000001)
+        self.snapshotstats.update('added', 1000001)
+        self.snapshotstats.update('added', 1000001)
+        self.snapshotstats.update('added', 1000001)
+        self.snapshotstats.update('added', 10000001)
+        self.snapshotstats.update('added', 10000001)
+        self.snapshotstats.update('added', 10000001)
+        self.snapshotstats.update('added', 10000001)
+        self.snapshotstats.update('added', 50000001)
+        self.snapshotstats.update('added', 50000001)
+        self.snapshotstats.update('added', 50000001)
+        self.snapshotstats.update('added', 50000001)
+        self.snapshotstats.update('added', 100000001)
+        self.snapshotstats.update('added', 100000001)
+        self.snapshotstats.update('added', 100000001)
+        self.snapshotstats.update('added', 100000001)
+        self.snapshotstats.update('added', 250000001)
+        self.snapshotstats.update('added', 250000001)
+        self.snapshotstats.update('added', 250000001)
+        self.snapshotstats.update('added', 250000001)
+
+        print self.snapshotstats.stats
+
+        self.snapshotstats.export('snapshot', writepath)
+        self.assertTrue(filecmp.cmp(os.path.join(writepath,"snapshot.csv"),  assertStatsFile), "output and expected do not match")
+        pass
+
+    def test_snapshotstats_getBytes(self):
+        self.testname = sys._getframe().f_code.co_name
+        assertBytes = 1200
+        boundarypath = os.path.join(os.getcwd(), 'test_snapshotstats/boundaries.csv')
+        statspath = os.path.join(os.getcwd(), 'test_snapshotstats/getBytes/')
+        listCategories = {'snapshot' : ['added', 'modified', 'unchanged', 'removed']}
+
+        self.snapshotstats = snapshotstats.fromFile(boundarypath, listCategories, statspath)
+
+        pass
 unittest.main()

@@ -125,14 +125,14 @@ class snapshotstats:
         return;
 
 
-    def update(category, size):
+    def update(self, category, size):
         bytes = int(size)
 
-        for boundary in statsBoundaries:
+        for boundary in self.boundaries:
             name, lower, upper = boundary
             if (bytes >= int(lower) and upper == '') or (bytes >= int(lower) and bytes < int(upper)):
-                stats[category]['count '+name] += 1
-                stats[category]['bytes '+name] += bytes
+                self.stats[category]['count '+name] += 1
+                self.stats[category]['bytes '+name] += bytes
         return;
 
 
