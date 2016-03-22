@@ -133,7 +133,7 @@ class test_snapshotstats(unittest.TestCase):
 
         self.snapshotstats = snapshotstats.initWithCategories(boundarypath, listCategories)
         self.snapshotstats.export('snapshot', writepath)
-        self.assertTrue(filecmp.cmp(os.path.join(writepath,"snapshot.csv"),  assertStatsFile))
+        self.assertTrue(filecmp.cmp(os.path.join(writepath,"snapshot.csv"),  assertStatsFile), "output and expected file, do not match")
         pass
 
     def test_snapshotstats_update_stats(self):
@@ -192,10 +192,8 @@ class test_snapshotstats(unittest.TestCase):
         self.snapshotstats.update('added', 250000001)
         self.snapshotstats.update('added', 250000001)
 
-        print self.snapshotstats.stats
-
         self.snapshotstats.export('snapshot', writepath)
-        self.assertTrue(filecmp.cmp(os.path.join(writepath,"snapshot.csv"),  assertStatsFile), "output and expected do not match")
+        self.assertTrue(filecmp.cmp(os.path.join(writepath,"snapshot.csv"),  assertStatsFile), "output and expected file, do not match")
         pass
 
     def test_snapshotstats_getBytes(self):
