@@ -33,7 +33,11 @@ def toBytes(humanBytes):
 parser = argparse.ArgumentParser(prog='mkcargo.py', description='Analysis a filesystem and create a cargo file to drive an ingest job.')
 # Set consts that we want to know about but the user can not (at this time specify)
 parser.set_defaults(queueParams = {'max' : 100000, 'highWater' : 9000, 'lowWater' : 100})
-parser.set_defaults(outFiles = {'valid' : ['files.queue', 'dirs.queue', 'error.log', 'debug.log', 'failed', 'added', 'modified', 'unchanged', 'symlink', 'directory', 'config', 'cargo', 'removed', 'queue.csv'], 'preserve' : ['files.queue', 'dirs.queue', 'error.log', 'debug.log', 'failed', 'config', 'queue.csv'], 'append' : ['added', 'modified', 'unchanged', 'symlink', 'directory', 'removed', 'snapshot.csv', 'ingest.csv', 'cargo.csv'] })
+parser.set_defaults(outFiles = {'valid' : ['savedstate.files', 'savedstate.dirs', 'resumestate.files', 'resumestate.dirs', 'error.log', 'debug.log', 'failed', 'added', 'modified', 'unchanged', 'symlink', 'directory', 'config', 'cargo', 'removed', 'queue.csv']})
+parser.set_defaults(rootDir = ['savedstate.files', 'savedstate.dirs', 'resumestate.files', 'resumestate.dirs', 'error.log', 'debug.log', 'config'])
+parser.set_defaults(statsDir = ['snapshot.csv', 'ingest.csv', 'cargo.csv'])
+parser.set_defaults(snapshotDir = ['failed', 'added', 'modified', 'unchanged', 'symlink', 'directory', 'removed'])
+
 parser.set_defaults(includeStats = {'snapshot' : ['added', 'modified', 'unchanged'], 'ingest' : ['added', 'modified'], 'cargo': []})
 parser.set_defaults(statsBoundaries = os.path.join(os.path.dirname( os.path.realpath( __file__ )), 'boundaries.csv'))
 parser.set_defaults(executablePath = os.path.dirname( os.path.realpath( __file__ )))
@@ -46,7 +50,7 @@ parser.set_defaults(lastRunPrefix = 'run')
 parser.set_defaults(snapshotEOL = '\n')
 parser.set_defaults(sys_uname = platform.uname())
 
-parser.add_argument('--version', action='version', version='%(prog)s 0.2.5')
+parser.add_argument('--version', action='version', version='%(prog)s 0.3.0')
 
 parser.add_argument('-s', dest='followSymlink', action='store_true', help='follow symlinks and ingest their target, defaults to recording symlinks and their targets in the symlink file.')
 
@@ -73,6 +77,11 @@ group = parser.add_mutually_exclusive_group(required=True)
 group.add_argument('--full', metavar='snapshots', dest='snapshots', nargs=1, default="", help='generate a cargo file for the current snapshot')
 group.add_argument('--incr', metavar='snapshots', dest='snapshots', nargs=2, default="", help='generates a cargo file for the difference between the first snapshot and the second')
 group.add_argument('--files', metavar='file', dest='file', nargs='+', default="", help='a file containing explicit paths for which a cargo file needs to be generated')
+
+def touch(path):
+    with open(path, 'a'):
+        os.utime(path, None)
+
 
 # convert human readable version of a size in Bytes
 #
@@ -183,7 +192,9 @@ def logConfig():
 #
 def prepOutput():
     prefix = "run"
+    flag_running = ".running"
     cargo_ext = ".md5"
+    subdirs = ["stats", "cargos", "snapshot"]
     dirlist = []
     filelist = []
     moveList = []
@@ -201,6 +212,13 @@ def prepOutput():
                     dirlist.append(child)
                 elif os.path.isfile(childPath):
                     filelist.append(child)
+
+            if flag_running in listing:
+                print("This job is either still running or has die prematurely, check that it is still running")
+                if not promptUser_yes_no("reconstructure state of incomplete job and continue?"):
+                    exit(1)
+            else:
+                touch(os.path.join(args.filebase, flag_running))
 
             if len(set(['files.queue', 'dirs.queue']) | set(filelist)) > 0:
                 savedState = True
@@ -227,30 +245,20 @@ def prepOutput():
                 for dir in dirlist:
                     shutil.rmtree(os.path.join(args.filebase, dir))
             else:
-                # figure out how many times this has been run.
-                numRuns = len(filter(lambda x: x.startswith(prefix), dirlist))
-                lastRun = os.path.join(args.filebase, "%s%s"%(args.lastRunPrefix,str(numRuns+1).zfill(args.lastRunPad)))
-                os.makedirs(lastRun)
-
-                if args.prepMode == 'append':
-                    copyList  = list(set(filelist).intersection(args.outFiles['append']))
-                else:
-                    moveList  = list(set(filelist).intersection(args.outFiles['append']))
-                moveList += list(set(filelist).intersection(args.outFiles['preserve']))
-                moveList += filter(lambda x: x.endswith(args.cargoExt), filelist)
-
-                for file in moveList:
-                    shutil.move(os.path.join(args.filebase, file), lastRun)
-                for file in copyList:
-                    shutil.copy2(os.path.join(args.filebase, file), lastRun)
-                
+                for dir in subdirs:
+                    if not(dir in dirlist):
+                        os.makedirs(os.path.join(args.filebase, dir))
+                    
                 if savedState:
                     print "resuming state from previous run"
-                    dirsResume = os.path.join(lastRun, 'dirs.queue')
-                    filesResume = os.path.join(lastRun, 'dirs.queue')
+                    dirsResume = os.path.join(args.filebase, 'savedstate.dirs')
+                    filesResume = os.path.join(args.filebase, 'savedstate.files')
                     args.resumeQueues = [ dirsResume, filesResume ]
         else:
             os.makedirs(args.filebase)
+            for dir in subdirs:
+                os.makedirs(os.path.join(args.filebase, dir))
+
     except ValueError:
         sys.stderr.write("Can't archive previous run: %s)\n"%(file, ValueError))
         sys.exit(-1)
@@ -300,7 +308,7 @@ def loadStats(fields):
     # imports stats and boundaries, only relevant for 'rework' mode
     try:
         # First load in the stats for the snapshot (so far)
-        file = os.path.join(args.filebase,'snapshot.csv')
+        file = os.path.join(args.filebase, 'stats', 'snapshot.csv')
         with open(file) as csvfile:
             statsBoundaries = csv.DictReader(csvfile)
             for row in statsBoundaries:
@@ -314,7 +322,7 @@ def loadStats(fields):
         # First load in the stats for the cargo files (so far)
         cargoCount += 1
 
-        file = os.path.join(args.filebase,'cargo.csv')
+        file = os.path.join(args.filebase, 'stats', 'cargo.csv')
         with open(file) as csvfile:
             statsBoundaries = csv.DictReader(csvfile)
             # skip the header row, as this was created above
@@ -385,10 +393,15 @@ def updateStats(file, size):
                     stats[file]['Category'] = file
                 else:  
                     stats[file][field] = 0
-            filePath = os.path.join(args.filebase, filename)
+            filePath = os.path.join(args.filebase, 'cargos', filename)
 
     else:
-        filePath = os.path.join(args.filebase, file)
+        if file in args.statsDir:
+            filePath = os.path.join(args.filebase, 'stats', file)
+        elif file in args.snapshotDir:
+            filePath = os.path.join(args.filebase, 'snapshot', file)
+        else:
+            filePath = os.path.join(args.filebase, file)
 
     for boundary in statsBoundaries:
         name, lower, upper = boundary
@@ -403,7 +416,7 @@ def exportStats():
     # exports stats based on categories listed in includeStats & includeStats 
     try:
         for statSet in args.includeStats:
-            file = os.path.join(args.filebase,statSet+'.csv')
+            file = os.path.join(args.filebase,'stats',statSet+'.csv')
             with open(file, "wb") as csvfile:
                 writer = csv.DictWriter(csvfile, fieldnames=statsFields)
                 #writer.writeheader()
@@ -435,8 +448,10 @@ def outputResult(i, files, q):
         # update stats for this file
         if file in list( set(otherFiles) | set(args.includeStats['snapshot']) | set(args.includeStats['ingest']) ):
             changeFile, filePath = updateStats(file, bytes)
+        elif file in args.snapshotDir:
+            filePath = os.path.join(args.filebase, 'snapshot', file)
         else:
-            filePath = os.path.join(args.filebase,file)
+            filePath = os.path.join(args.filebase, file)
 
         if changeFile and (file in files):
            try:
