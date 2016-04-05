@@ -200,8 +200,9 @@ def logConfig():
 # copy some others but delete nothing!
 #
 def prepOutput():
-    prefix = "run"
     flag_running = ".running"
+    flag_pause = ".pause"
+    flag_complete = ".complete"
     cargo_ext = ".md5"
     subdirs = ["stats", "cargos", "snapshot"]
     dirlist = []
@@ -220,8 +221,15 @@ def prepOutput():
                 elif os.path.isfile(childPath):
                     filelist.append(child)
 
-            if flag_running in listing:
-                print("This job is either still running or has die prematurely, check that it is still running")
+            if flag_pause in filelist:
+                os.remove(os.path.join(args.filebase, flag_pause))
+
+            if flag_complete in filelist:
+                print("This job has previously completed, clear output directory to re-run from scratch.")
+                exit(1)
+
+            if flag_running in filelist:
+                print("This job is either still running or has die prematurely, check that it is not still running.")
                 if not promptUser_yes_no("reconstructure state of incomplete job and continue?"):
                     exit(1)
             else:
@@ -307,7 +315,7 @@ def cleanup():
         filepath = os.path.join(args.filebase, file)
         if os.path.isfile(filepath):
             os.remove(filepath)
-    touch(os.path.join(args.filebase, '.completed'))
+    touch(os.path.join(args.filebase, '.complete'))
     return;
 
 def prepStats():
