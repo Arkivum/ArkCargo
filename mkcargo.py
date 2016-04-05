@@ -33,11 +33,11 @@ def toBytes(humanBytes):
 parser = argparse.ArgumentParser(prog='mkcargo.py', description='Analysis a filesystem and create a cargo file to drive an ingest job.')
 # Set consts that we want to know about but the user can not (at this time specify)
 parser.set_defaults(queueParams = {'max' : 100000, 'highWater' : 9000, 'lowWater' : 100})
-parser.set_defaults(outFiles = {'valid' : ['savedstate.files', 'savedstate.dirs', 'resumestate.files', 'resumestate.dirs', 'error.log', 'debug.log', 'failed', 'added', 'modified', 'unchanged', 'symlink', 'directory', 'config', 'cargo', 'removed', 'queue.csv']})
-parser.set_defaults(rootDir = ['savedstate.files', 'savedstate.dirs', 'resumestate.files', 'resumestate.dirs', 'error.log', 'debug.log', 'config'])
+parser.set_defaults(outFiles = {'valid' : ['processed', 'savedstate.files', 'savedstate.dirs', 'resumestate.files', 'resumestate.dirs', 'error.log', 'debug.log', 'failed', 'added', 'modified', 'unchanged', 'symlink', 'directory', 'config', 'cargo', 'removed', 'queue.csv']})
+parser.set_defaults(rootDir = ['processed', 'savedstate.files', 'savedstate.dirs', 'resumestate.files', 'resumestate.dirs', 'error.log', 'debug.log', 'config'])
 parser.set_defaults(statsDir = ['snapshot.csv', 'ingest.csv', 'cargo.csv'])
 parser.set_defaults(snapshotDir = ['failed', 'added', 'modified', 'unchanged', 'symlink', 'directory', 'removed'])
-
+parser.set_defaults(cleanupFiles = ['.running', 'processed', 'savedstate.files', 'savedstate.dirs', 'resumestate.files', 'resumestate.dirs'])
 parser.set_defaults(includeStats = {'snapshot' : ['added', 'modified', 'unchanged'], 'ingest' : ['added', 'modified'], 'cargo': []})
 parser.set_defaults(statsBoundaries = os.path.join(os.path.dirname( os.path.realpath( __file__ )), 'boundaries.csv'))
 parser.set_defaults(executablePath = os.path.dirname( os.path.realpath( __file__ )))
@@ -49,6 +49,9 @@ parser.set_defaults(lastRunPad = 4)
 parser.set_defaults(lastRunPrefix = 'run')
 parser.set_defaults(snapshotEOL = '\n')
 parser.set_defaults(sys_uname = platform.uname())
+
+parser.set_defaults(startTime = datetime.datetime.now())
+parser.set_defaults(processedFile = "")
 
 parser.add_argument('--version', action='version', version='%(prog)s 0.3.0')
 
@@ -113,34 +116,40 @@ def isDirectory(path):
 
 def isFailed(path):
     resultsQueue.put(("failed", "", path + args.snapshotEOL))
+    resultsQueue.put(("processed", "", path + args.snapshotEOL))
     return;
 
 def isAdded(path, bytes):
     resultsQueue.put(("added", bytes, path + args.snapshotEOL))
+    resultsQueue.put(("processed", "", path + args.snapshotEOL))
     return;
 
 def isModified(path, bytes):
     resultsQueue.put(("modified", bytes, path + args.snapshotEOL))
+    resultsQueue.put(("processed", "", path + args.snapshotEOL))
     return;
 
 def isUnchanged(path, bytes):
     resultsQueue.put(("unchanged", bytes, path + args.snapshotEOL))
+    resultsQueue.put(("processed", "", path + args.snapshotEOL))
     return;
 
 def isRemoved(path, bytes):
     resultsQueue.put(("removed", bytes, path + args.snapshotEOL))
+    resultsQueue.put(("processed", "", path + args.snapshotEOL))
     return;
 
 def isSymlink(path, target):
     resultsQueue.put(("symlink", "", "%s %s%s"%(path, target, args.snapshotEOL)))
+    resultsQueue.put(("processed", "", path + args.snapshotEOL))
     return;
 
-def queueFiles(path):
-    resultsQueue.put(("files.queue", "", "%s%s"%(path, args.snapshotEOL)))
+def queueFiles(type, path):
+    resultsQueue.put(("%s.files"%type, "", "%s%s"%(path, args.snapshotEOL)))
     return;
 
-def queueDirs(path):
-    resultsQueue.put(("dirs.queue", "", "%s%s"%(path, args.snapshotEOL)))
+def queueDirs(type, path):
+    resultsQueue.put(("%s.dirs"%type, "", "%s%s"%(path, args.snapshotEOL)))
     return;
 
 def promptUser_yes_no(question):
@@ -197,8 +206,6 @@ def prepOutput():
     subdirs = ["stats", "cargos", "snapshot"]
     dirlist = []
     filelist = []
-    moveList = []
-    copyList = []
     savedState = False
 
 
@@ -219,6 +226,9 @@ def prepOutput():
                     exit(1)
             else:
                 touch(os.path.join(args.filebase, flag_running))
+            
+            if os.path.isfile(os.path.join(args.filebase, 'processed')):
+                args.processedFile = os.path.join(args.filebase, 'processed')
 
             if len(set(['files.queue', 'dirs.queue']) | set(filelist)) > 0:
                 savedState = True
@@ -248,11 +258,15 @@ def prepOutput():
                 for dir in subdirs:
                     if not(dir in dirlist):
                         os.makedirs(os.path.join(args.filebase, dir))
-                    
                 if savedState:
                     print "resuming state from previous run"
                     dirsResume = os.path.join(args.filebase, 'savedstate.dirs')
                     filesResume = os.path.join(args.filebase, 'savedstate.files')
+                    args.resumeQueues = [ dirsResume, filesResume ]
+                elif resumeState:    
+                    print "resuming from check point"
+                    dirsResume = os.path.join(args.filebase, 'resumestate.dirs')
+                    filesResume = os.path.join(args.filebase, 'resumestate.files')
                     args.resumeQueues = [ dirsResume, filesResume ]
         else:
             os.makedirs(args.filebase)
@@ -287,6 +301,14 @@ def loadBoundaries(file):
     statsFields = ['Category'] + bytesfields.keys() + countfields.keys()
 
     return boundaries, statsFields;
+
+def cleanup():
+    for file in args.cleanupFiles:
+        filepath = os.path.join(args.filebase, file)
+        if os.path.isfile(filepath):
+            os.remove(filepath)
+    touch(os.path.join(args.filebase, '.completed'))
+    return;
 
 def prepStats():
     boundaries = []
@@ -436,6 +458,8 @@ def exportStats():
 #
 def outputResult(i, files, q):
     otherFiles = ['cargo']
+    global terminateThreads
+
     while True:
         changeFile = False
         filePath = ""
@@ -471,7 +495,6 @@ def outputResult(i, files, q):
             except ValueError:
                 sys.stderr.write("can't open %s"%file)
                 sys.exit(-1)
-
 
         # write out the message to the end of the file
         try:
@@ -514,6 +537,31 @@ def cargoEntry(path):
             pass
     return;
 
+def saveState(type):
+    global terminateThreads
+
+    terminateThreads = True
+    print "The job is exiting and saving the current queue to disk."
+    print "Please be patient."
+    print "saving file queue state..."
+    while not fileQueue.empty():
+        queueFiles(type, fileQueue.get())
+    print "file queue state saved."
+    print "saving directory queue state..."
+    while not dirQueue.empty():
+        queueDirs(type, dirQueue.get())
+    print "directory queue state saved."
+    print "waiting for threads to complete."
+    resultsQueue.join()
+    print "all threads have completed."
+    print "exporting stats."
+    exportStats()
+    print "stats saved."
+    for file in fileHandles:
+        fileHandles[file].close()
+    os.remove(os.path.join(args.filebase, '.running'))
+    return();
+
 
 # pathWorker used by threads to process a Full snapshot of the file tree
 #
@@ -531,7 +579,9 @@ def snapshotFull(i, f, d):
         errorMsg("bad snapshot: %s"%args.snapshotCurrent)
  
     while not terminateThreads:
-        if not f.empty():
+        if os.path.exists(os.path.join(args.filebase, '.pause')):
+            saveState("savedstate")
+        elif not f.empty():
             debugMsg("f (%s) d (%s) (%s) calling fileFull"%(f.qsize(), d.qsize(), threadName))
             fileFull(f)
         elif d.empty() or fileOnly:
@@ -552,6 +602,11 @@ def fileFull(fileQ):
 
         debugMsg("fileFull (%s)- %s"%(current_thread().getName(), relPath))
 
+        if args.processedFile:
+            with open(args.processedFile, 'r') as f:
+                for line in f:
+                    fileQ.task_done()
+                    return;
         if not os.access(absPath, os.R_OK):
             errorMsg("Permission Denied: %s"%absPath)
             isFailed(relPath)
@@ -644,7 +699,9 @@ def snapshotIncr(i, f, d):
         errorMsg("bad snapshot: %s"%args.snapshotCurrent)
 
     while not terminateThreads:
-        if not f.empty():
+        if os.path.exists(os.path.join(args.filebase, '.pause')):
+            saveState('savedstate')
+        elif not f.empty():
             debugMsg("f (%s) d (%s) (%s) calling fileIncr"%(f.qsize(), d.qsize(), threadName))
             fileIncr(f)
         elif d.empty() or fileOnly:
@@ -772,7 +829,9 @@ def snapshotExplicit(i, f, d):
     debugMsg("thread ident %s - fileOnly: %s"%(i, fileOnly))
 
     while not terminateThreads:
-        if not f.empty():
+        if os.path.exists(os.path.join(args.filebase, '.pause')):
+            saveState('savedstate')
+        elif not f.empty():
             debugMsg("f (%s) d (%s) (%s) calling fileFull"%(f.qsize(), d.qsize(), threadName))
             fileExplicit(f)
         elif d.empty() or fileOnly:
@@ -882,11 +941,19 @@ def primeQueues(fileQueue, dirQueue):
                     else:
                         isFailed(relPath)
                         errorMsg("invalid path: %s"%relPath)
+
+            print "creating resume state from saved state..."
+            if os.path.exists(os.path.join(args.filebase, 'savedstate.files')):
+                os.rename(os.path.join(args.filebase, 'savedstate.files'), os.path.join(args.filebase, 'resumestate.files'))
+            if os.path.exists(os.path.join(args.filebase, 'savedstate.dirs')):
+                os.rename(os.path.join(args.filebase, 'savedstate.dirs'), os.path.join(args.filebase, 'resumestate.dirs'))
+
         except ValueError:
             # Time to tell all the threads to bail out
             terminateThreads = True
             sys.stderr.write("Cannot read list of files to ingest from %s (error: %s)\n"%(args.rework, ValueError))
             sys.exit(-1)
+
     else:
         relPath = "."
         absPath = os.path.join(args.snapshotCurrent, relPath)
@@ -978,6 +1045,7 @@ if __name__ == '__main__':
             if args.debug:
                 queueMsg("\"%s\", \"%s\", \"%s\", \"%s\"\n"%(args.queueParams['max'], fileQueue.qsize(), dirQueue.qsize(), resultsQueue.qsize()))
             time.sleep(.1)
+            
             if fileQueue.empty() and dirQueue.empty():
                 queueMsg("\"%s\", \"%s\", \"%s\", \"%s\"\n"%(args.queueParams['max'], fileQueue.qsize(), dirQueue.qsize(), resultsQueue.qsize()))
                 dirQueue.join()
@@ -987,26 +1055,10 @@ if __name__ == '__main__':
                 exportStats()
                 for file in fileHandles:
                     fileHandles[file].close()
+                cleanup()
                 exit(1)
     except KeyboardInterrupt:
         # Time to tell all the threads to bail out
-        print "The job is exiting and saving the current queue to disk."
-        print "Please be patient."
         terminateThreads = True
-        print "saving file queue state..."
-        while not fileQueue.empty():
-           queueFiles(fileQueue.get())
-        print "file queue state saved."
-        print "saving directory queue state..."
-        while not dirQueue.empty():
-           queueDirs(dirQueue.get())
-        print "directory queue state saved."
-        print "waiting for threads to complete."
-        resultsQueue.join()
-        print "all threads have completed."
-        print "exporting stats."
-        exportStats()
-        print "stats saved."
-        for file in fileHandles:
-            fileHandles[file].close()
+        saveState('savedstate')
         exit(1)
