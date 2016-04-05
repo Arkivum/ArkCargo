@@ -280,6 +280,7 @@ def prepOutput():
             os.makedirs(args.filebase)
             for dir in subdirs:
                 os.makedirs(os.path.join(args.filebase, dir))
+            touch(os.path.join(args.filebase, flag_running))
 
     except ValueError:
         sys.stderr.write("Can't archive previous run: %s)\n"%(file, ValueError))
@@ -567,7 +568,8 @@ def saveState(type):
     print "stats saved."
     for file in fileHandles:
         fileHandles[file].close()
-    os.remove(os.path.join(args.filebase, '.running'))
+    if os.path.isfile(os.path.join(args.filebase, '.running')):
+        os.remove(os.path.join(args.filebase, '.running'))
     return();
 
 
