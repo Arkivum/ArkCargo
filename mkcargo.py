@@ -113,37 +113,30 @@ def queueMsg(message):
 
 def isDirectory(path):
     resultsQueue.put(("directory", "", path + args.snapshotEOL))
-    resultsQueue.put(("processed.dirs", "", path + args.snapshotEOL))
     return;
 
 def isFailed(path):
     resultsQueue.put(("failed", "", path + args.snapshotEOL))
-    resultsQueue.put(("processed.files", "", path + args.snapshotEOL))
     return;
 
 def isAdded(path, bytes):
     resultsQueue.put(("added", bytes, path + args.snapshotEOL))
-    resultsQueue.put(("processed.files", "", path + args.snapshotEOL))
     return;
 
 def isModified(path, bytes):
     resultsQueue.put(("modified", bytes, path + args.snapshotEOL))
-    resultsQueue.put(("processed.files", "", path + args.snapshotEOL))
     return;
 
 def isUnchanged(path, bytes):
     resultsQueue.put(("unchanged", bytes, path + args.snapshotEOL))
-    resultsQueue.put(("processed.files", "", path + args.snapshotEOL))
     return;
 
 def isRemoved(path, bytes):
     resultsQueue.put(("removed", bytes, path + args.snapshotEOL))
-    resultsQueue.put(("processed.files", "", path + args.snapshotEOL))
     return;
 
 def isSymlink(path, target):
     resultsQueue.put(("symlink", "", "%s %s%s"%(path, target, args.snapshotEOL)))
-    resultsQueue.put(("processed.files", "", path + args.snapshotEOL))
     return;
 
 def queueFiles(type, path):
@@ -616,11 +609,14 @@ def snapshotFull(i, f, d):
     try:
         if args.savedState:
             processedfilePath = os.path.join(args.filebase, 'processed.files')
+            processeddirPath = os.path.join(args.filebase, 'processed.dirs')
             if os.path.exists(processedfilePath):
                 processedFiles = open(processedfilePath, 'r')
+            if os.path.exists(processeddirPath):
+                processedDirs = open(processeddirPath, 'r')
+
     except (IOError, OSError) as e:
         errorMsg("%s %s"%(e, processedfilePath))
-        errorMsg("%s %s"%(e, processeddirPath))
         exit(-1)
 
     while not terminateThreads:
@@ -636,9 +632,12 @@ def snapshotFull(i, f, d):
             time.sleep(i)
         else:
             debugMsg("f (%s) d (%s) (%s) calling dirFull"%(f.qsize(), d.qsize(), threadName))
-            dirFull(d, f)
-    if (args.savedState and processedFiles):
-                processedFiles.close()
+            dirFull(d, f, processedDirs)
+    if args.savedState: 
+        if processedFiles:
+            processedFiles.close()
+        if processedDirs:
+            processedDirs.close()
     return;
 
 
@@ -673,7 +672,7 @@ def fileFull(fileQ, processedFiles):
 
 # process a single directory
 #
-def dirFull(dirQ, fileQ):
+def dirFull(dirQ, fileQ, processedDirs):
     leafNode = True
     relPath = dirQ.get()
     try:
@@ -721,7 +720,16 @@ def dirFull(dirQ, fileQ):
 
             if leafNode:
                 # must be leaf node lets record it
-                isDirectory(relPath)
+                if args.savedState and processedDirs:
+                    dirProcessed = False
+                    for line in processedDirs:
+                        if relPath in line:
+                           dirProcessed = True
+                           break
+                    if dirProcessed:
+                        isDirectory(relPath)
+                else:
+                    isDirectory(relPath) 
     except (IOError, OSError) as e:
         errorMsg("%s %s"%(e, absPath))
         isFailed(relPath)
@@ -735,8 +743,10 @@ def dirFull(dirQ, fileQ):
 def snapshotIncr(i, f, d):
     threadName =current_thread().getName()
     fileOnly = False if (i % 2) == 0 else True
-    debugMsg("thread ident %s - fileOnly: %s"%(i, fileOnly))
+    processedFiles = None
+    processedDirs = None
 
+    debugMsg("thread ident %s - fileOnly: %s"%(i, fileOnly))
     if os.path.isdir(args.snapshotCurrent):
         # This is necessary because when used with a VFS, just listing a path
         # without stepping into the file system can have interesting and
@@ -745,30 +755,59 @@ def snapshotIncr(i, f, d):
     else:
         errorMsg("bad snapshot: %s"%args.snapshotCurrent)
 
+    try:
+        if args.savedState:
+            processedfilePath = os.path.join(args.filebase, 'processed.files')
+            processeddirPath = os.path.join(args.filebase, 'processed.dirs')
+            if os.path.exists(processedfilePath):
+                processedFiles = open(processedfilePath, 'r')
+            if os.path.exists(processeddirPath):
+                processedDirs = open(processeddirPath, 'r')
+    except (IOError, OSError) as e:
+        errorMsg("%s %s"%(e, processedfilePath))
+        exit(-1)
+
     while not terminateThreads:
         if os.path.exists(os.path.join(args.filebase, '.pause')):
             saveState('savedstate')
         elif not f.empty():
             debugMsg("f (%s) d (%s) (%s) calling fileIncr"%(f.qsize(), d.qsize(), threadName))
-            fileIncr(f)
+            if (args.savedState and processedFiles):
+                processedFiles.seek(0)
+                fileIncr(f, processedFiles)
         elif d.empty() or fileOnly:
             debugMsg("f (%s) d (%s) (%s) Idle"%(f.qsize(), d.qsize(), threadName))
             time.sleep(i)
         else:
             debugMsg("f (%s) d (%s) (%s) calling dirIncr"%(f.qsize(), d.qsize(), threadName))
-            dirIncr(d, f)
+            if (args.savedState and processedFiles):
+               processedFiles.seek(0)
+            if (args.savedState and processedDirs):
+               processedDirs.seek(0)
+            dirIncr(d, f, processedDirs, processedFiles)
+
+    if args.savedState:
+        if processedFiles:
+            processedFiles.close()
+        if processedDirs:
+            processedDirs.close()
     return;
 
 
 # process a single file path
 #
-def fileIncr(fileQ):
+def fileIncr(fileQ, processedFiles):
     relPath = fileQ.get()
     try:
         absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
         oldPath = os.path.abspath(os.path.join(args.snapshotPrevious, relPath))
 
         debugMsg("fileIncr (%s)- %s"%(current_thread().getName(), absPath))
+        if args.savedState and processedFiles:
+            for line in processedFiles:
+                if relPath in line:
+                    fileQ.task_done()
+                    return;
 
         if not os.access(absPath, os.R_OK):
             errorMsg("Permission Denied; %s"%absPath)
@@ -803,7 +842,7 @@ def fileIncr(fileQ):
 
 # process a single directory
 #
-def dirIncr(dirQ, fileQ):
+def dirIncr(dirQ, fileQ, processedDirs, processedFiles):
     leafNode = True
     relPath = dirQ.get()
     try:
@@ -837,7 +876,17 @@ def dirIncr(dirQ, fileQ):
                     listingOld = os.listdir(oldPath)
                     debugMsg("dirIncr (%s) old - %s items"%(current_thread().getName(), len(listingOld)))
                     for removed in list(set(listingOld).difference(listingNew)):
-                        isRemoved(os.path.join(relPath, removed), os.path.getsize(oldPath))
+                        if args.savedState and processedFiles:
+                            processedFiles.seek(0)
+                            fileProcessed = False
+                            for line in processedFiles:
+                                if relPath in line:
+                                    fileProcessed = True
+                                    break
+                            if not fileProcessed:
+                                isRemoved(os.path.join(relPath, removed), os.path.getsize(oldPath))
+                        else:
+                            isRemoved(os.path.join(relPath, removed), os.path.getsize(oldPath))
 
             for childItem in listingNew:
                 childAbs = os.path.abspath(os.path.join(absPath, childItem))
@@ -856,7 +905,16 @@ def dirIncr(dirQ, fileQ):
 
             if leafNode:
                 # must be leaf node lets record it
-                isDirectory(relPath)
+                if args.savedState and processedDirs:
+                    dirProcessed = False
+                    for line in processedDirs:
+                        if relPath in line:
+                           dirProcessed = True
+                           break
+                    if not dirProcessed:
+                        isDirectory(relPath)
+                else:
+                    isDirectory(relPath)
         else:
             debugMsg("fileQueue.put (%s)- file in dirQueue %s"%(current_thread().getName(), relPath))
             fileQ.put(relPath)
@@ -875,28 +933,48 @@ def snapshotExplicit(i, f, d):
     fileOnly = False if (i % 2) == 0 else True
     debugMsg("thread ident %s - fileOnly: %s"%(i, fileOnly))
 
+    # if savedState then we need to open filehandles to check whether they are
+    # have previously been processed
+    try:
+        if args.savedState:
+            processedfilePath = os.path.join(args.filebase, 'processed.files')
+            if os.path.exists(processedfilePath):
+                processedFiles = open(processedfilePath, 'r')
+    except (IOError, OSError) as e:
+        errorMsg("%s %s"%(e, processedfilePath))
+        exit(-1)
+
     while not terminateThreads:
         if os.path.exists(os.path.join(args.filebase, '.pause')):
             saveState('savedstate')
         elif not f.empty():
             debugMsg("f (%s) d (%s) (%s) calling fileFull"%(f.qsize(), d.qsize(), threadName))
-            fileExplicit(f)
+            if (args.savedState and processedFiles):
+                processedFiles.seek(0)
+                fileExplicit(f, processedFiles)
         elif d.empty() or fileOnly:
             debugMsg("f (%s) d (%s) (%s) Idle"%(f.qsize(), d.qsize(), threadName))
             time.sleep(i)
         else:
             debugMsg("f (%s) d (%s) (%s) calling dirFull"%(f.qsize(), d.qsize(), threadName))
             dirExplicit(d, f)
+    if (args.savedState and processedFiles):
+                processedFiles.close()
     return;
 
 
 # process a single file path
 #
-def fileExplicit(fileQ):
+def fileExplicit(fileQ, processedFiles):
     absPath = fileQ.get()
     debugMsg("fileExplicit (%s)- %s"%(current_thread().getName(), absPath))
-
     try:
+        if args.savedState and processedFiles:
+            for line in processedFiles:
+                if relPath in line:
+                    fileQ.task_done()
+                    return;
+
         if not os.path.exists(absPath):
             errorMsg("Does not exist; %s"%absPath)
             isFailed(absPath)
