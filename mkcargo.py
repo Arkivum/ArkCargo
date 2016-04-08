@@ -938,8 +938,11 @@ def snapshotExplicit(i, f, d):
     try:
         if args.savedState:
             processedfilePath = os.path.join(args.filebase, 'processed.files')
+            processeddirPath = os.path.join(args.filebase, 'processed.dirs')
             if os.path.exists(processedfilePath):
                 processedFiles = open(processedfilePath, 'r')
+            if os.path.exists(processeddirPath):
+                processedDirs = open(processeddirPath, 'r')
     except (IOError, OSError) as e:
         errorMsg("%s %s"%(e, processedfilePath))
         exit(-1)
@@ -957,9 +960,12 @@ def snapshotExplicit(i, f, d):
             time.sleep(i)
         else:
             debugMsg("f (%s) d (%s) (%s) calling dirFull"%(f.qsize(), d.qsize(), threadName))
-            dirExplicit(d, f)
-    if (args.savedState and processedFiles):
-                processedFiles.close()
+            dirExplicit(d, f, processedDirs)
+    if args.savedState:
+        if processedFiles:
+            processedFiles.close()
+        if processedDirs:
+            processedDirs.close()
     return;
 
 
