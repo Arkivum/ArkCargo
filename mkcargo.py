@@ -33,11 +33,12 @@ def toBytes(humanBytes):
 parser = argparse.ArgumentParser(prog='mkcargo.py', description='Analysis a filesystem and create a cargo file to drive an ingest job.')
 # Set consts that we want to know about but the user can not (at this time specify)
 parser.set_defaults(queueParams = {'max' : 100000, 'highWater' : 9000, 'lowWater' : 100})
-parser.set_defaults(outFiles = {'valid' : ['processed', 'savedstate.files', 'savedstate.dirs', 'resumestate.files', 'resumestate.dirs', 'error.log', 'debug.log', 'failed', 'added', 'modified', 'unchanged', 'symlink', 'directory', 'config', 'cargo', 'removed', 'queue.csv']})
+parser.set_defaults(outFiles = {'valid' : ['processed.files', 'processed.dirs', 'savedstate.files', 'savedstate.dirs', 'resumestate.files', 'resumestate.dirs', 'error.log', 'debug.log', 'failed', 'added', 'modified', 'unchanged', 'symlink', 'directory', 'config', 'cargo', 'removed', 'queue.csv']})
 parser.set_defaults(rootDir = ['processed', 'savedstate.files', 'savedstate.dirs', 'resumestate.files', 'resumestate.dirs', 'error.log', 'debug.log', 'config'])
 parser.set_defaults(statsDir = ['snapshot.csv', 'ingest.csv', 'cargo.csv'])
 parser.set_defaults(snapshotDir = ['failed', 'added', 'modified', 'unchanged', 'symlink', 'directory', 'removed'])
-parser.set_defaults(cleanupFiles = ['.running', 'processed', 'savedstate.files', 'savedstate.dirs', 'resumestate.files', 'resumestate.dirs'])
+parser.set_defaults(cleanupFiles = ['.running', 'processed.files', 'processed.dirs', 'savedstate.files', 'savedstate.dirs', 'resumestate.files', 'resumestate.dirs'])
+parser.set_defaults(savedState = False)
 parser.set_defaults(includeStats = {'snapshot' : ['added', 'modified', 'unchanged'], 'ingest' : ['added', 'modified'], 'cargo': []})
 parser.set_defaults(statsBoundaries = os.path.join(os.path.dirname( os.path.realpath( __file__ )), 'boundaries.csv'))
 parser.set_defaults(executablePath = os.path.dirname( os.path.realpath( __file__ )))
@@ -112,36 +113,37 @@ def queueMsg(message):
 
 def isDirectory(path):
     resultsQueue.put(("directory", "", path + args.snapshotEOL))
+    resultsQueue.put(("processed.dirs", "", path + args.snapshotEOL))
     return;
 
 def isFailed(path):
     resultsQueue.put(("failed", "", path + args.snapshotEOL))
-    resultsQueue.put(("processed", "", path + args.snapshotEOL))
+    resultsQueue.put(("processed.files", "", path + args.snapshotEOL))
     return;
 
 def isAdded(path, bytes):
     resultsQueue.put(("added", bytes, path + args.snapshotEOL))
-    resultsQueue.put(("processed", "", path + args.snapshotEOL))
+    resultsQueue.put(("processed.files", "", path + args.snapshotEOL))
     return;
 
 def isModified(path, bytes):
     resultsQueue.put(("modified", bytes, path + args.snapshotEOL))
-    resultsQueue.put(("processed", "", path + args.snapshotEOL))
+    resultsQueue.put(("processed.files", "", path + args.snapshotEOL))
     return;
 
 def isUnchanged(path, bytes):
     resultsQueue.put(("unchanged", bytes, path + args.snapshotEOL))
-    resultsQueue.put(("processed", "", path + args.snapshotEOL))
+    resultsQueue.put(("processed.files", "", path + args.snapshotEOL))
     return;
 
 def isRemoved(path, bytes):
     resultsQueue.put(("removed", bytes, path + args.snapshotEOL))
-    resultsQueue.put(("processed", "", path + args.snapshotEOL))
+    resultsQueue.put(("processed.files", "", path + args.snapshotEOL))
     return;
 
 def isSymlink(path, target):
     resultsQueue.put(("symlink", "", "%s %s%s"%(path, target, args.snapshotEOL)))
-    resultsQueue.put(("processed", "", path + args.snapshotEOL))
+    resultsQueue.put(("processed.files", "", path + args.snapshotEOL))
     return;
 
 def queueFiles(type, path):
@@ -207,8 +209,7 @@ def prepOutput():
     subdirs = ["stats", "cargos", "snapshot"]
     dirlist = []
     filelist = []
-    savedState = False
-
+    global args 
 
     try:
         if os.path.isdir(args.filebase):
@@ -238,8 +239,29 @@ def prepOutput():
             if os.path.isfile(os.path.join(args.filebase, 'processed')):
                 args.processedFile = os.path.join(args.filebase, 'processed')
 
-            if len(set(['files.queue', 'dirs.queue']) | set(filelist)) > 0:
-                savedState = True
+            if len(set(['processed.files', 'processed.dirs', 'savedstate.files', 'savedstate.dirs']) | set(filelist)) > 0:
+                args.savedState = True
+
+            if len(set(subdirs) & set(dirlist)) < len(subdirs):
+                #we need to migrate from a pre 0.3.0 version of mkcargo
+                print "making 0.3.x subdirs"
+                statsDir = os.path.join(args.filebase, 'stats')
+                snapDir = os.path.join(args.filebase, 'snapshot')
+                cargoDir = os.path.join(args.filebase, 'cargos')
+
+                for dir in subdirs:
+                    subdirPath =os.path.join(args.filebase, dir)
+                    if not os.path.isdir(subdirPath):
+                        os.makedirs(subdirPath)
+
+                #Now we move the files to their post 0.3.0 home
+                for file in filelist:
+                    if file.endswith(".md5"):
+                        shutil.move(os.path.join(args.filebase, file), os.path.join(args.filebase, cargoDir, file))
+                    elif file.endswith(".csv"):
+                        shutil.move(os.path.join(args.filebase, file), os.path.join(args.filebase, statsDir, file))
+                    elif file in args.snapshotDir:
+                        shutil.move(os.path.join(args.filebase, file), os.path.join(args.filebase, snapDir, file))
 
             # lets figure out what to do if there already files in the output directory
             if args.rework or args.resume:
@@ -262,11 +284,10 @@ def prepOutput():
                     os.remove(os.path.join(args.filebase, file))
                 for dir in dirlist:
                     shutil.rmtree(os.path.join(args.filebase, dir))
-            else:
                 for dir in subdirs:
-                    if not(dir in dirlist):
-                        os.makedirs(os.path.join(args.filebase, dir))
-                if savedState:
+                    os.makedirs(os.path.join(args.filebase, dir))
+            else:
+                if args.savedState:
                     print "resuming state from previous run"
                     dirsResume = os.path.join(args.filebase, 'savedstate.dirs')
                     filesResume = os.path.join(args.filebase, 'savedstate.files')
@@ -579,6 +600,8 @@ def snapshotFull(i, f, d):
     threadName =current_thread().getName()
     fileOnly = False if (i % 2) == 0 else True
     debugMsg("thread ident %s - fileOnly: %s"%(i, fileOnly))  
+    processedFiles = None
+    processedDirs = None
  
     if os.path.isdir(args.snapshotCurrent):
         # This is necessary because when used with a VFS, just listing a path
@@ -587,34 +610,49 @@ def snapshotFull(i, f, d):
         os.chdir(args.snapshotCurrent)
     else:
         errorMsg("bad snapshot: %s"%args.snapshotCurrent)
- 
+
+    # if savedState then we need to open filehandles to check whether they are
+    # have previously been processed
+    try:
+        if args.savedState:
+            processedfilePath = os.path.join(args.filebase, 'processed.files')
+            if os.path.exists(processedfilePath):
+                processedFiles = open(processedfilePath, 'r')
+    except (IOError, OSError) as e:
+        errorMsg("%s %s"%(e, processedfilePath))
+        errorMsg("%s %s"%(e, processeddirPath))
+        exit(-1)
+
     while not terminateThreads:
         if os.path.exists(os.path.join(args.filebase, '.pause')):
             saveState("savedstate")
         elif not f.empty():
             debugMsg("f (%s) d (%s) (%s) calling fileFull"%(f.qsize(), d.qsize(), threadName))
-            fileFull(f)
+            if (args.savedState and processedFiles):
+                processedFiles.seek(0)
+            fileFull(f, processedFiles)
         elif d.empty() or fileOnly:
             debugMsg("f (%s) d (%s) (%s) Idle"%(f.qsize(), d.qsize(), threadName))
             time.sleep(i)
         else:
             debugMsg("f (%s) d (%s) (%s) calling dirFull"%(f.qsize(), d.qsize(), threadName))
             dirFull(d, f)
+    if (args.savedState and processedFiles):
+                processedFiles.close()
     return;
 
 
 # process a single file path 
 # 
-def fileFull(fileQ):
+def fileFull(fileQ, processedFiles):
     relPath = fileQ.get()
     try:
         absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
 
         debugMsg("fileFull (%s)- %s"%(current_thread().getName(), relPath))
-
-        if args.processedFile:
-            with open(args.processedFile, 'r') as f:
-                for line in f:
+        if args.savedState and processedFiles:
+            for line in processedFiles:
+                if relPath in line:
                     fileQ.task_done()
                     return;
         if not os.access(absPath, os.R_OK):
@@ -642,7 +680,6 @@ def dirFull(dirQ, fileQ):
         absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
 
         debugMsg("dirfull (%s)- %s"%(current_thread().getName(), relPath))
-
         if not os.path.exists(absPath):
             errorMsg("Path does not exist: %s"%absPath)
             isFailed(relPath)
@@ -1058,13 +1095,20 @@ if __name__ == '__main__':
             
             if fileQueue.empty() and dirQueue.empty():
                 queueMsg("\"%s\", \"%s\", \"%s\", \"%s\"\n"%(args.queueParams['max'], fileQueue.qsize(), dirQueue.qsize(), resultsQueue.qsize()))
+                print "waiting for directory queue to clear..."
                 dirQueue.join()
+                print "waiting for file queue to clear..."
                 fileQueue.join()
+                print "waiting for worker processes to complete..."
                 terminateThreads = True
+                print "waiting for results queue to clear..."
                 resultsQueue.join()
+                print "exporting statistics..."
                 exportStats()
+                print "closing files..."
                 for file in fileHandles:
                     fileHandles[file].close()
+                print "cleaning up process files..."
                 cleanup()
                 exit(1)
     except KeyboardInterrupt:
