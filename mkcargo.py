@@ -54,12 +54,13 @@ parser.set_defaults(sys_uname = platform.uname())
 parser.set_defaults(startTime = datetime.datetime.now())
 parser.set_defaults(processedFile = "")
 
-parser.add_argument('--version', action='version', version='%(prog)s 0.3.1')
+parser.add_argument('--version', action='version', version='%(prog)s 0.3.2')
 
 parser.add_argument('-s', dest='followSymlink', action='store_true', help='follow symlinks and ingest their target, defaults to recording symlinks and their targets in the symlink file.')
 
 parser.add_argument('-j', metavar='threads', nargs='?', dest='threads', type=int, default=(max(multiprocessing.cpu_count(),1)), help='Controls multi-threading. By default the program will create one thread per CPU core, one thread is used for writing to the output files, the rest for scanning the file system and calculating MD5 hashes. Multi-threading causes output filenames to be in non-deterministic order, as files that take longer to hash will be delayed while they are hashed.')
 
+parser.add_argument('-r', dest='relPathInCargos', action='store_true', help='use relative paths in cargos for rebasing of structures on ingest.')
 parser.add_argument('-n', nargs='?', metavar='name', dest='name', type=str, required=True, help='a meaningful name for the dataset, this should be consistent for all snapshot of a given dataset.')
 
 parser.add_argument('-t', nargs='?', metavar='yyyymmddThhmmss', dest='timestamp', type=str, required=True, help='Where a filesystem snapshot is being processed then it is important to use the timestamp from the newer snapshot.')
@@ -552,7 +553,11 @@ def cargoEntry(path):
                     hash.update(block)
 
             hash = hash.hexdigest().replace(" ","")
-            resultsQueue.put(("cargo", os.path.getsize(absPath), "%s  %s%s"%(hash, absPath, args.cargoEOL)))
+            if args.relPathInCargos:
+                filePath = path
+            else:
+                filePath = absPath
+            resultsQueue.put(("cargo", os.path.getsize(absPath), "%s  %s%s"%(hash, filePath, args.cargoEOL)))
 
         except (IOError, OSError) as e:
             errorMsg("%s %s"%(e, absPath))
