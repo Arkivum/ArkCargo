@@ -22,14 +22,6 @@ import shutil
 stats = {}
 statsFields = {}
 
-def toBytes(humanBytes):
-    # convert human readable to '0's
-    byteUnits = {'KB' : 1000, 'MB' : 1000000, 'GB' : 1000000000, 'TB' :1000000000000, 'PB' : 1000000000000000}
-
-    humanBytes = humanBytes.upper()
-    bytes = int(humanBytes[:-2]) * byteUnits.get(humanBytes[-2:])
-    return bytes;
-
 parser = argparse.ArgumentParser(prog='mkcargo.py', description='Analysis a filesystem and create a cargo file to drive an ingest job.')
 # Set consts that we want to know about but the user can not (at this time specify)
 parser.set_defaults(queueParams = {'max' : 100000, 'highWater' : 9000, 'lowWater' : 100})
@@ -95,8 +87,14 @@ def toBytes(humanBytes):
     byteUnits = {'KB' : '000', 'MB' : '000000', 'GB' : '000000000', 'TB' :'000000000000', 'PB' : '000000000000000'}
 
     humanBytes = humanBytes.upper()
-    humanBytes = humanBytes[:-2] + byteUnits.get(humanBytes[-2:])
-    return int(humanBytes);
+    humanUnits = humanBytes[-2:]
+    validUnits = byteUnits.keys()
+    if humanUnits not in validUnits:
+        sys.stderr.write("Cargo units (%s) not recognised, must have units of: %s\n"%(humanUnits, validUnits))
+        sys.exit(-1) 
+    else:
+        justBytes = humanBytes[:-2] + byteUnits.get(humanUnits)
+    return int(justBytes);
 
 def debugMsg(message):
     if args.debug:
@@ -581,8 +579,10 @@ def saveState(type):
         queueDirs(type, dirQueue.get())
     print "directory queue state saved."
     print "waiting for threads to complete."
-    resultsQueue.join()
+    for pathWorker in pathWorkers:
+        pathWorker.join()
     print "all threads have completed."
+    resultsQueue.join()
     print "exporting stats."
     exportStats()
     print "stats saved."
@@ -1153,6 +1153,7 @@ if __name__ == '__main__':
         resultsWorker.setDaemon(True)
         resultsWorker.start()
         
+        pathWorkers = []
         # setup the pool of path workers
         for i in range(args.threads):
             if args.mode == 'full':
@@ -1165,7 +1166,9 @@ if __name__ == '__main__':
                 terminateThreads = True
                 sys.stderr.write("unrecognised mode! abandon excution.\n")
                 sys.exit(-1)
+            pathWorkers.append(pathWorker)
 
+        for pathWorker in pathWorkers:
             pathWorker.setDaemon(True)
             pathWorker.start()
 
