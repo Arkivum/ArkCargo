@@ -526,6 +526,8 @@ def outputResult(i, files, q):
             sys.stderr.write("Cannot write to %s\n"%file)
             sys.stderr.write("%s: %s\n"%(file, message))
             exit(-1)
+        if changeFile:
+            exportStats()
         q.task_done()
 
 
