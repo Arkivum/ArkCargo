@@ -54,7 +54,7 @@ parser.set_defaults(sys_uname = platform.uname())
 parser.set_defaults(startTime = datetime.datetime.now())
 parser.set_defaults(processedFile = "")
 
-parser.add_argument('--version', action='version', version='%(prog)s 0.3.2')
+parser.add_argument('--version', action='version', version='%(prog)s 0.3.3')
 
 parser.add_argument('-s', dest='followSymlink', action='store_true', help='follow symlinks and ingest their target, defaults to recording symlinks and their targets in the symlink file.')
 
@@ -67,7 +67,7 @@ parser.add_argument('-t', nargs='?', metavar='yyyymmddThhmmss', dest='timestamp'
 
 parser.add_argument('-o', nargs='?', metavar='output directory', dest='output', type=str, default="output", help='the directory under which to write the output. <output directory>/<name>/<timestamp>/<output files>.')
 
-parser.add_argument('-cargoMax', dest='cargoMax', default='5TB', help=argparse.SUPPRESS)
+parser.add_argument('-cargoMax', dest='cargoMax', default='100GB', help=argparse.SUPPRESS)
 
 parser.add_argument('--exists', dest='prepMode', choices=['clean', 'preserve', 'append'], default='preserve', help=argparse.SUPPRESS)
 parser.add_argument('--clean', action='store_true', help='if output directory exists delete its contents before process, by default previous output is preserved.')
@@ -281,6 +281,7 @@ def prepOutput():
                 for dir in subdirs:
                     os.makedirs(os.path.join(args.filebase, dir))
             else:
+                args.prepMode = 'append'
                 if args.savedState:
                     print "resuming state from previous run"
                     dirsResume = os.path.join(args.filebase, 'savedstate.dirs')
