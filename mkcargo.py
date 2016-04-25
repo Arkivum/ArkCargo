@@ -46,7 +46,7 @@ parser.set_defaults(sys_uname = platform.uname())
 parser.set_defaults(startTime = datetime.datetime.now())
 parser.set_defaults(processedFile = "")
 
-parser.add_argument('--version', action='version', version='%(prog)s 0.3.3')
+parser.add_argument('--version', action='version', version='%(prog)s 0.4.0')
 
 parser.add_argument('-s', dest='followSymlink', action='store_true', help='follow symlinks and ingest their target, defaults to recording symlinks and their targets in the symlink file.')
 
@@ -602,6 +602,7 @@ def snapshotFull(i, f, d):
     debugMsg("thread ident %s - fileOnly: %s"%(i, fileOnly))  
     processedFiles = None
     processedDirs = None
+    global savingState
  
     if os.path.isdir(args.snapshotCurrent):
         # This is necessary because when used with a VFS, just listing a path
@@ -627,7 +628,8 @@ def snapshotFull(i, f, d):
         exit(-1)
 
     while not terminateThreads:
-        if os.path.exists(os.path.join(args.filebase, '.pause')):
+        if (os.path.exists(os.path.join(args.filebase, '.pause')) and not savingState):
+            savingState = True
             saveState("savedstate")
         elif not f.empty():
             debugMsg("f (%s) d (%s) (%s) calling fileFull"%(f.qsize(), d.qsize(), threadName))
@@ -750,6 +752,7 @@ def dirFull(dirQ, fileQ, processedDirs):
 def snapshotIncr(i, f, d):
     threadName =current_thread().getName()
     fileOnly = False if (i % 2) == 0 else True
+    global savingState
     processedFiles = None
     processedDirs = None
 
@@ -775,8 +778,9 @@ def snapshotIncr(i, f, d):
         exit(-1)
 
     while not terminateThreads:
-        if os.path.exists(os.path.join(args.filebase, '.pause')):
-            saveState('savedstate')
+        if (os.path.exists(os.path.join(args.filebase, '.pause')) and not savingState):
+            savingState = True
+            saveState("savedstate")
         elif not f.empty():
             debugMsg("f (%s) d (%s) (%s) calling fileIncr"%(f.qsize(), d.qsize(), threadName))
             if (args.savedState and processedFiles):
@@ -941,6 +945,7 @@ def snapshotExplicit(i, f, d):
     threadName =current_thread().getName()
     fileOnly = False if (i % 2) == 0 else True
     debugMsg("thread ident %s - fileOnly: %s"%(i, fileOnly))
+    global savingState
 
     # if savedState then we need to open filehandles to check whether they are
     # have previously been processed
@@ -957,8 +962,9 @@ def snapshotExplicit(i, f, d):
         exit(-1)
 
     while not terminateThreads:
-        if os.path.exists(os.path.join(args.filebase, '.pause')):
-            saveState('savedstate')
+        if (os.path.exists(os.path.join(args.filebase, '.pause')) and not savingState):
+            savingState = True
+            saveState("savedstate")
         elif not f.empty():
             debugMsg("f (%s) d (%s) (%s) calling fileFull"%(f.qsize(), d.qsize(), threadName))
             if (args.savedState and processedFiles):
@@ -1113,6 +1119,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args.cargoMaxBytes = toBytes(args.cargoMax)
     terminateThreads = False
+    savingState = False
 
     # initialise Queues
     fileQueue = Queue(args.queueParams['max'])
