@@ -31,7 +31,7 @@ parser.set_defaults(statsDir = ['snapshot.csv', 'ingest.csv', 'cargo.csv'])
 parser.set_defaults(snapshotDir = ['failed', 'added', 'modified', 'unchanged', 'symlink', 'directory', 'removed'])
 parser.set_defaults(cleanupFiles = ['.running', 'processed.files', 'processed.dirs', 'savedstate.files', 'savedstate.dirs', 'resumestate.files', 'resumestate.dirs'])
 parser.set_defaults(savedState = False)
-parser.set_defaults(includeStats = {'snapshot' : ['added', 'modified', 'unchanged'], 'ingest' : ['added', 'modified'], 'cargo': []})
+parser.set_defaults(includeStats = {'snapshot' : ['added', 'modified', 'unchanged', 'symlink', 'directory', 'removed', 'failed'], 'ingest' : ['added', 'modified'], 'cargo': []})
 parser.set_defaults(statsBoundaries = os.path.join(os.path.dirname( os.path.realpath( __file__ )), 'boundaries.csv'))
 parser.set_defaults(executablePath = os.path.dirname( os.path.realpath( __file__ )))
 parser.set_defaults(terminalPath = os.path.realpath(os.getcwd()))
@@ -111,11 +111,11 @@ def queueMsg(message):
     return;
 
 def isDirectory(path):
-    resultsQueue.put(("directory", "", path + args.snapshotEOL))
+    resultsQueue.put(("directory", 0, path + args.snapshotEOL))
     return;
 
 def isFailed(path):
-    resultsQueue.put(("failed", "", path + args.snapshotEOL))
+    resultsQueue.put(("failed", 0, path + args.snapshotEOL))
     return;
 
 def isAdded(path, bytes):
@@ -135,7 +135,7 @@ def isRemoved(path, bytes):
     return;
 
 def isSymlink(path, target):
-    resultsQueue.put(("symlink", "", "%s %s%s"%(path, target, args.snapshotEOL)))
+    resultsQueue.put(("symlink", 0, "%s %s%s"%(path, target, args.snapshotEOL)))
     return;
 
 def queueFiles(type, path):
@@ -384,9 +384,9 @@ def loadStats(fields):
         # [TO DO]
 
         # even if we are reworking failed files, we'll start with a new cargo file
-        stats['cargo'] = {}
-        stats['cargo']['Vol'] = 0
-        stats['cargo']['Num'] = cargoCount
+        stats['chunk'] = {}
+        stats['chunk']['Vol'] = 0
+        stats['chunk']['Num'] = cargoCount
 
     except ValueError:
         sys.stderr.write("Can't import stats to file %s (error: %s)\n"%(file, ValueError))
@@ -404,9 +404,9 @@ def initStats(fields):
                 stats[category]['Category'] = category
             else:   
                 stats[category][field] = 0
-    stats['cargo'] = {}
-    stats['cargo']['Vol'] = 0
-    stats['cargo']['Num'] = 0
+    stats['chunk'] = {}
+    stats['chunk']['Vol'] = 0
+    stats['chunk']['Num'] = 0
 
     return stats;
 
@@ -417,16 +417,16 @@ def updateStats(file, size):
     filePath = ""
     bytes = int(size)
 
-    if file == "cargo":
-        if (stats[file]['Vol'] + bytes) > args.cargoMaxBytes:
-            stats[file]['Num'] += 1 
-            stats[file]['Vol'] = bytes
-            newFile = True
-        else:
-            stats[file]['Vol'] += bytes
+    if (stats['chunk']['Vol'] + bytes) > args.cargoMaxBytes:
+        stats['chunk']['Num'] += 1 
+        newFile = True
+    else:
+        stats['chunk']['Vol'] += bytes
 
-        filename = args.name + "-" +  args.timestamp + "-" + str(stats[file]['Num']).zfill(args.cargoPad) + args.cargoExt
-        file = file + str(stats[file]['Num']).zfill(args.cargoPad)
+    if file == "cargo":
+        filename = args.name + "-" +  args.timestamp + "-" + str(stats['chunk']['Num']).zfill(args.cargoPad) + args.cargoExt
+        filePath = os.path.join(args.filebase, 'cargos', filename)
+        file = file + str(stats['chunk']['Num']).zfill(args.cargoPad)
         if file not in args.includeStats['cargo']:
             #add cargo file to list
             args.includeStats['cargo'].append(file)
@@ -438,13 +438,12 @@ def updateStats(file, size):
                     stats[file]['Category'] = file
                 else:  
                     stats[file][field] = 0
-            filePath = os.path.join(args.filebase, 'cargos', filename)
-
     else:
         if file in args.statsDir:
             filePath = os.path.join(args.filebase, 'stats', file)
         elif file in args.snapshotDir:
-            filePath = os.path.join(args.filebase, 'snapshot', file)
+            filename = str(stats['chunk']['Num']).zfill(args.cargoPad) + "." + file
+            filePath = os.path.join(args.filebase, 'snapshot', filename)
         else:
             filePath = os.path.join(args.filebase, file)
 
@@ -782,7 +781,7 @@ def snapshotIncr(i, f, d):
             debugMsg("f (%s) d (%s) (%s) calling fileIncr"%(f.qsize(), d.qsize(), threadName))
             if (args.savedState and processedFiles):
                 processedFiles.seek(0)
-                fileIncr(f, processedFiles)
+            fileIncr(f, processedFiles)
         elif d.empty() or fileOnly:
             debugMsg("f (%s) d (%s) (%s) Idle"%(f.qsize(), d.qsize(), threadName))
             time.sleep(i)
@@ -806,6 +805,7 @@ def snapshotIncr(i, f, d):
 #
 def fileIncr(fileQ, processedFiles):
     relPath = fileQ.get()
+    debugMsg("fileIncr (%s)- %s - start"%(current_thread().getName(), relPath))
     try:
         absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
         oldPath = os.path.abspath(os.path.join(args.snapshotPrevious, relPath))
@@ -844,6 +844,7 @@ def fileIncr(fileQ, processedFiles):
         errorMsg("%s %s"%(e, absPath))
         isFailed(relPath)
         pass
+    debugMsg("fileIncr (%s)- %s - complete"%(current_thread().getName(), relPath))
     fileQ.task_done()
     return;
 
