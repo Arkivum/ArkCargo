@@ -430,22 +430,22 @@ def updateStats(file, size):
         if file not in args.includeStats['cargo']:
             #add cargo file to list
             args.includeStats['cargo'].append(file)
-
-            #initialise new stats line
-            stats[file] = {}
-            for field in statsFields:
-                if field == 'Category':
-                    stats[file]['Category'] = file
-                else:  
-                    stats[file][field] = 0
+    elif file in args.statsDir:
+        filePath = os.path.join(args.filebase, 'stats', file)
+    elif file in args.snapshotDir:
+        filename = str(stats['chunk']['Num']).zfill(args.cargoPad) + "." + file
+        filePath = os.path.join(args.filebase, 'snapshot', filename)
     else:
-        if file in args.statsDir:
-            filePath = os.path.join(args.filebase, 'stats', file)
-        elif file in args.snapshotDir:
-            filename = str(stats['chunk']['Num']).zfill(args.cargoPad) + "." + file
-            filePath = os.path.join(args.filebase, 'snapshot', filename)
-        else:
-            filePath = os.path.join(args.filebase, file)
+        filePath = os.path.join(args.filebase, file)
+
+    if file not in stats.keys():
+        #initialise new stats line
+        stats[file] = {}
+        for field in statsFields:
+            if field == 'Category':
+                stats[file]['Category'] = file
+            else:
+                stats[file][field] = 0
 
     for boundary in statsBoundaries:
         name, lower, upper = boundary
@@ -581,7 +581,11 @@ def saveState(type):
     print "directory queue state saved."
     print "waiting for threads to complete."
     for pathWorker in pathWorkers:
-        pathWorker.join()
+        try:
+            pathWorker.join()
+            print "has exited: %s"%pathWorker.getName()
+        except (RuntimeError) as e:
+            print "has exited: %s"%pathWorker.getName()
     print "all threads have completed."
     resultsQueue.join()
     print "exporting stats."
