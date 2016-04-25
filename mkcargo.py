@@ -369,19 +369,19 @@ def loadStats(fields):
 
         file = os.path.join(args.filebase, 'stats', 'cargo.csv')
         with open(file) as csvfile:
-            statsBoundaries = csv.DictReader(csvfile)
+            statsCargos = csv.DictReader(csvfile)
             # skip the header row, as this was created above
-            next(statsBoundaries)
-            for row in statsBoundaries:
-                stats[row['Category']] = {}
-                cargoCount += 1
-                for field in fields:
-                    if field == 'Category':
-                        args.includeStats['cargo'].append(row[field])
-                        stats[row['Category']][field] = row[field]
-                    else:
-                        stats[row['Category']][field] = int(row[field])
-        # [TO DO]
+            if len(list(statsCargos)) > 1:
+                next(statsBoundaries)
+                for row in statsBoundaries:
+                    stats[row['Category']] = {}
+                    cargoCount += 1
+                    for field in fields:
+                        if field == 'Category':
+                            args.includeStats['cargo'].append(row[field])
+                            stats[row['Category']][field] = row[field]
+                        else:
+                            stats[row['Category']][field] = int(row[field])
 
         # even if we are reworking failed files, we'll start with a new cargo file
         stats['chunk'] = {}
