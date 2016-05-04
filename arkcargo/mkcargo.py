@@ -22,14 +22,6 @@ import shutil
 stats = {}
 statsFields = {}
 
-def toBytes(humanBytes):
-    # convert human readable to '0's
-    byteUnits = {'KB' : 1000, 'MB' : 1000000, 'GB' : 1000000000, 'TB' :1000000000000, 'PB' : 1000000000000000}
-
-    humanBytes = humanBytes.upper()
-    bytes = int(humanBytes[:-2]) * byteUnits.get(humanBytes[-2:])
-    return bytes;
-
 parser = argparse.ArgumentParser(prog='mkcargo.py', description='Analysis a filesystem and create a cargo file to drive an ingest job.')
 # Set consts that we want to know about but the user can not (at this time specify)
 parser.set_defaults(queueParams = {'max' : 100000, 'highWater' : 9000, 'lowWater' : 100})
@@ -39,7 +31,7 @@ parser.set_defaults(statsDir = ['snapshot.csv', 'ingest.csv', 'cargo.csv'])
 parser.set_defaults(snapshotDir = ['failed', 'added', 'modified', 'unchanged', 'symlink', 'directory', 'removed'])
 parser.set_defaults(cleanupFiles = ['.running', 'processed.files', 'processed.dirs', 'savedstate.files', 'savedstate.dirs', 'resumestate.files', 'resumestate.dirs'])
 parser.set_defaults(savedState = False)
-parser.set_defaults(includeStats = {'snapshot' : ['added', 'modified', 'unchanged'], 'ingest' : ['added', 'modified'], 'cargo': []})
+parser.set_defaults(includeStats = {'snapshot' : ['added', 'modified', 'unchanged', 'symlink', 'directory', 'removed', 'failed'], 'ingest' : ['added', 'modified'], 'cargo': []})
 parser.set_defaults(statsBoundaries = os.path.join(os.path.dirname( os.path.realpath( __file__ )), 'boundaries.csv'))
 parser.set_defaults(executablePath = os.path.dirname( os.path.realpath( __file__ )))
 parser.set_defaults(terminalPath = os.path.realpath(os.getcwd()))
@@ -54,7 +46,7 @@ parser.set_defaults(sys_uname = platform.uname())
 parser.set_defaults(startTime = datetime.datetime.now())
 parser.set_defaults(processedFile = "")
 
-parser.add_argument('--version', action='version', version='%(prog)s 0.3.2')
+parser.add_argument('--version', action='version', version='%(prog)s 0.4.0')
 
 parser.add_argument('-s', dest='followSymlink', action='store_true', help='follow symlinks and ingest their target, defaults to recording symlinks and their targets in the symlink file.')
 
@@ -67,7 +59,7 @@ parser.add_argument('-t', nargs='?', metavar='yyyymmddThhmmss', dest='timestamp'
 
 parser.add_argument('-o', nargs='?', metavar='output directory', dest='output', type=str, default="output", help='the directory under which to write the output. <output directory>/<name>/<timestamp>/<output files>.')
 
-parser.add_argument('-cargoMax', dest='cargoMax', default='5TB', help=argparse.SUPPRESS)
+parser.add_argument('-cargoMax', dest='cargoMax', default='100GB', help=argparse.SUPPRESS)
 
 parser.add_argument('--exists', dest='prepMode', choices=['clean', 'preserve', 'append'], default='preserve', help=argparse.SUPPRESS)
 parser.add_argument('--clean', action='store_true', help='if output directory exists delete its contents before process, by default previous output is preserved.')
@@ -95,8 +87,14 @@ def toBytes(humanBytes):
     byteUnits = {'KB' : '000', 'MB' : '000000', 'GB' : '000000000', 'TB' :'000000000000', 'PB' : '000000000000000'}
 
     humanBytes = humanBytes.upper()
-    humanBytes = humanBytes[:-2] + byteUnits.get(humanBytes[-2:])
-    return int(humanBytes);
+    humanUnits = humanBytes[-2:]
+    validUnits = byteUnits.keys()
+    if humanUnits not in validUnits:
+        sys.stderr.write("Cargo units (%s) not recognised, must have units of: %s\n"%(humanUnits, validUnits))
+        sys.exit(-1) 
+    else:
+        justBytes = humanBytes[:-2] + byteUnits.get(humanUnits)
+    return int(justBytes);
 
 def debugMsg(message):
     if args.debug:
@@ -113,11 +111,11 @@ def queueMsg(message):
     return;
 
 def isDirectory(path):
-    resultsQueue.put(("directory", "", path + args.snapshotEOL))
+    resultsQueue.put(("directory", 0, path + args.snapshotEOL))
     return;
 
 def isFailed(path):
-    resultsQueue.put(("failed", "", path + args.snapshotEOL))
+    resultsQueue.put(("failed", 0, path + args.snapshotEOL))
     return;
 
 def isAdded(path, bytes):
@@ -137,7 +135,7 @@ def isRemoved(path, bytes):
     return;
 
 def isSymlink(path, target):
-    resultsQueue.put(("symlink", "", "%s %s%s"%(path, target, args.snapshotEOL)))
+    resultsQueue.put(("symlink", 0, "%s %s%s"%(path, target, args.snapshotEOL)))
     return;
 
 def queueFiles(type, path):
@@ -281,6 +279,7 @@ def prepOutput():
                 for dir in subdirs:
                     os.makedirs(os.path.join(args.filebase, dir))
             else:
+                args.prepMode = 'append'
                 if args.savedState:
                     print "resuming state from previous run"
                     dirsResume = os.path.join(args.filebase, 'savedstate.dirs')
@@ -370,24 +369,24 @@ def loadStats(fields):
 
         file = os.path.join(args.filebase, 'stats', 'cargo.csv')
         with open(file) as csvfile:
-            statsBoundaries = csv.DictReader(csvfile)
+            statsCargos = csv.DictReader(csvfile)
             # skip the header row, as this was created above
-            next(statsBoundaries)
-            for row in statsBoundaries:
-                stats[row['Category']] = {}
-                cargoCount += 1
-                for field in fields:
-                    if field == 'Category':
-                        args.includeStats['cargo'].append(row[field])
-                        stats[row['Category']][field] = row[field]
-                    else:
-                        stats[row['Category']][field] = int(row[field])
-        # [TO DO]
+            if len(list(statsCargos)) > 1:
+                next(statsBoundaries)
+                for row in statsBoundaries:
+                    stats[row['Category']] = {}
+                    cargoCount += 1
+                    for field in fields:
+                        if field == 'Category':
+                            args.includeStats['cargo'].append(row[field])
+                            stats[row['Category']][field] = row[field]
+                        else:
+                            stats[row['Category']][field] = int(row[field])
 
         # even if we are reworking failed files, we'll start with a new cargo file
-        stats['cargo'] = {}
-        stats['cargo']['Vol'] = 0
-        stats['cargo']['Num'] = cargoCount
+        stats['chunk'] = {}
+        stats['chunk']['Vol'] = 0
+        stats['chunk']['Num'] = cargoCount
 
     except ValueError:
         sys.stderr.write("Can't import stats to file %s (error: %s)\n"%(file, ValueError))
@@ -405,9 +404,9 @@ def initStats(fields):
                 stats[category]['Category'] = category
             else:   
                 stats[category][field] = 0
-    stats['cargo'] = {}
-    stats['cargo']['Vol'] = 0
-    stats['cargo']['Num'] = 0
+    stats['chunk'] = {}
+    stats['chunk']['Vol'] = 0
+    stats['chunk']['Num'] = 0
 
     return stats;
 
@@ -418,36 +417,35 @@ def updateStats(file, size):
     filePath = ""
     bytes = int(size)
 
-    if file == "cargo":
-        if (stats[file]['Vol'] + bytes) > args.cargoMaxBytes:
-            stats[file]['Num'] += 1 
-            stats[file]['Vol'] = bytes
-            newFile = True
-        else:
-            stats[file]['Vol'] += bytes
+    if (stats['chunk']['Vol'] + bytes) > args.cargoMaxBytes:
+        stats['chunk']['Num'] += 1 
+        newFile = True
+    else:
+        stats['chunk']['Vol'] += bytes
 
-        filename = args.name + "-" +  args.timestamp + "-" + str(stats[file]['Num']).zfill(args.cargoPad) + args.cargoExt
-        file = file + str(stats[file]['Num']).zfill(args.cargoPad)
+    if file == "cargo":
+        filename = args.name + "-" +  args.timestamp + "-" + str(stats['chunk']['Num']).zfill(args.cargoPad) + args.cargoExt
+        filePath = os.path.join(args.filebase, 'cargos', filename)
+        file = file + str(stats['chunk']['Num']).zfill(args.cargoPad)
         if file not in args.includeStats['cargo']:
             #add cargo file to list
             args.includeStats['cargo'].append(file)
-
-            #initialise new stats line
-            stats[file] = {}
-            for field in statsFields:
-                if field == 'Category':
-                    stats[file]['Category'] = file
-                else:  
-                    stats[file][field] = 0
-            filePath = os.path.join(args.filebase, 'cargos', filename)
-
+    elif file in args.statsDir:
+        filePath = os.path.join(args.filebase, 'stats', file)
+    elif file in args.snapshotDir:
+        filename = str(stats['chunk']['Num']).zfill(args.cargoPad) + "." + file
+        filePath = os.path.join(args.filebase, 'snapshot', filename)
     else:
-        if file in args.statsDir:
-            filePath = os.path.join(args.filebase, 'stats', file)
-        elif file in args.snapshotDir:
-            filePath = os.path.join(args.filebase, 'snapshot', file)
-        else:
-            filePath = os.path.join(args.filebase, file)
+        filePath = os.path.join(args.filebase, file)
+
+    if file not in stats.keys():
+        #initialise new stats line
+        stats[file] = {}
+        for field in statsFields:
+            if field == 'Category':
+                stats[file]['Category'] = file
+            else:
+                stats[file][field] = 0
 
     for boundary in statsBoundaries:
         name, lower, upper = boundary
@@ -527,6 +525,8 @@ def outputResult(i, files, q):
             sys.stderr.write("Cannot write to %s\n"%file)
             sys.stderr.write("%s: %s\n"%(file, message))
             exit(-1)
+        if changeFile:
+            exportStats()
         q.task_done()
 
 
@@ -580,8 +580,14 @@ def saveState(type):
         queueDirs(type, dirQueue.get())
     print "directory queue state saved."
     print "waiting for threads to complete."
-    resultsQueue.join()
+    for pathWorker in pathWorkers:
+        try:
+            pathWorker.join()
+            print "has exited: %s"%pathWorker.getName()
+        except (RuntimeError) as e:
+            print "has exited: %s"%pathWorker.getName()
     print "all threads have completed."
+    resultsQueue.join()
     print "exporting stats."
     exportStats()
     print "stats saved."
@@ -600,6 +606,7 @@ def snapshotFull(i, f, d):
     debugMsg("thread ident %s - fileOnly: %s"%(i, fileOnly))  
     processedFiles = None
     processedDirs = None
+    global savingState
  
     if os.path.isdir(args.snapshotCurrent):
         # This is necessary because when used with a VFS, just listing a path
@@ -625,7 +632,8 @@ def snapshotFull(i, f, d):
         exit(-1)
 
     while not terminateThreads:
-        if os.path.exists(os.path.join(args.filebase, '.pause')):
+        if (os.path.exists(os.path.join(args.filebase, '.pause')) and not savingState):
+            savingState = True
             saveState("savedstate")
         elif not f.empty():
             debugMsg("f (%s) d (%s) (%s) calling fileFull"%(f.qsize(), d.qsize(), threadName))
@@ -748,6 +756,7 @@ def dirFull(dirQ, fileQ, processedDirs):
 def snapshotIncr(i, f, d):
     threadName =current_thread().getName()
     fileOnly = False if (i % 2) == 0 else True
+    global savingState
     processedFiles = None
     processedDirs = None
 
@@ -773,13 +782,14 @@ def snapshotIncr(i, f, d):
         exit(-1)
 
     while not terminateThreads:
-        if os.path.exists(os.path.join(args.filebase, '.pause')):
-            saveState('savedstate')
+        if (os.path.exists(os.path.join(args.filebase, '.pause')) and not savingState):
+            savingState = True
+            saveState("savedstate")
         elif not f.empty():
             debugMsg("f (%s) d (%s) (%s) calling fileIncr"%(f.qsize(), d.qsize(), threadName))
             if (args.savedState and processedFiles):
                 processedFiles.seek(0)
-                fileIncr(f, processedFiles)
+            fileIncr(f, processedFiles)
         elif d.empty() or fileOnly:
             debugMsg("f (%s) d (%s) (%s) Idle"%(f.qsize(), d.qsize(), threadName))
             time.sleep(i)
@@ -803,6 +813,7 @@ def snapshotIncr(i, f, d):
 #
 def fileIncr(fileQ, processedFiles):
     relPath = fileQ.get()
+    debugMsg("fileIncr (%s)- %s - start"%(current_thread().getName(), relPath))
     try:
         absPath = os.path.abspath(os.path.join(args.snapshotCurrent, relPath))
         oldPath = os.path.abspath(os.path.join(args.snapshotPrevious, relPath))
@@ -841,6 +852,7 @@ def fileIncr(fileQ, processedFiles):
         errorMsg("%s %s"%(e, absPath))
         isFailed(relPath)
         pass
+    debugMsg("fileIncr (%s)- %s - complete"%(current_thread().getName(), relPath))
     fileQ.task_done()
     return;
 
@@ -937,6 +949,7 @@ def snapshotExplicit(i, f, d):
     threadName =current_thread().getName()
     fileOnly = False if (i % 2) == 0 else True
     debugMsg("thread ident %s - fileOnly: %s"%(i, fileOnly))
+    global savingState
 
     # if savedState then we need to open filehandles to check whether they are
     # have previously been processed
@@ -953,8 +966,9 @@ def snapshotExplicit(i, f, d):
         exit(-1)
 
     while not terminateThreads:
-        if os.path.exists(os.path.join(args.filebase, '.pause')):
-            saveState('savedstate')
+        if (os.path.exists(os.path.join(args.filebase, '.pause')) and not savingState):
+            savingState = True
+            saveState("savedstate")
         elif not f.empty():
             debugMsg("f (%s) d (%s) (%s) calling fileFull"%(f.qsize(), d.qsize(), threadName))
             if (args.savedState and processedFiles):
@@ -1109,6 +1123,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args.cargoMaxBytes = toBytes(args.cargoMax)
     terminateThreads = False
+    savingState = False
 
     # initialise Queues
     fileQueue = Queue(args.queueParams['max'])
@@ -1152,6 +1167,7 @@ if __name__ == '__main__':
         resultsWorker.setDaemon(True)
         resultsWorker.start()
         
+        pathWorkers = []
         # setup the pool of path workers
         for i in range(args.threads):
             if args.mode == 'full':
@@ -1164,7 +1180,9 @@ if __name__ == '__main__':
                 terminateThreads = True
                 sys.stderr.write("unrecognised mode! abandon excution.\n")
                 sys.exit(-1)
+            pathWorkers.append(pathWorker)
 
+        for pathWorker in pathWorkers:
             pathWorker.setDaemon(True)
             pathWorker.start()
 
