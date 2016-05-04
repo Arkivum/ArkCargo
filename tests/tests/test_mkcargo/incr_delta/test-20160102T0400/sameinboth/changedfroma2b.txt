@@ -1,1 +1,0 @@
-This file looks like this in the first snapshot, but has changed to this in the second.
