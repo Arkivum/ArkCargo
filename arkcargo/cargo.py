@@ -7,8 +7,12 @@
 
 
 import os 
-#, sys, hashlib, re, multiprocessing
 import hashlib
+
+def filename(dataset, timestamp, chunkId):
+    filename = dataset + "-" +  timestamp + "-" + str(chunkId).zfill(cargoPad) + ".md5"
+    return filename;
+
 
 def getMD5(path):
     hash = hashlib.md5()
