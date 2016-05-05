@@ -12,7 +12,7 @@ import unittest2 as unittest
 
 import os, sys, filecmp, shutil
 sys.path.append('../arkcargo')      
-from filesystem import fsMetadata
+from fs import fsMetadata
 
 
 class test_fsMetadata(unittest.TestCase):
