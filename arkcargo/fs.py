@@ -103,9 +103,27 @@ def isFile(path):
     #the path or link points to a file
     return os.path.isfile(path);
 
-def classify(path, followLinks):
-    
-    return 
+def classify(path, followSymlinks):
+    classification = ''
+    if not exists(path):
+        classification = 'broken'
+    elif not followSymlinks:
+        if isLink(path):
+            classification = 'symlink'
+        elif isDirReg(path):
+            classification = 'directory'
+        elif isFileReg(path):
+            classification = 'file'
+    else:
+        if not exists(path):
+            classification = 'broken'
+        elif isDir(path):
+            classification = 'directory'
+        elif isFile(path):
+            classification = 'file'
+        elif isLinkInvalid(path):
+            classification = 'broken'
+    return classification; 
 
 class fsMetadata:
 

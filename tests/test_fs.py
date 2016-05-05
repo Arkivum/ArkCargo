@@ -146,4 +146,25 @@ class test_fs(unittest.TestCase):
         self.assertFalse(fs.isFile(os.path.join(os.getcwd(), 'test_fs', 'missing')), "is not a link")
         pass
 
+
+    def test_fs_classify(self):
+        self.testname = sys._getframe().f_code.co_name
+        # Following Symlinks
+        self.assertTrue(fs.classify(os.path.join(os.getcwd(), 'test_fs', 'file-valid'), True) == 'file', "is not a link")
+        self.assertTrue(fs.classify(os.path.join(os.getcwd(), 'test_fs', 'file-invalid'), True) == 'broken', "is not a link")
+        self.assertTrue(fs.classify(os.path.join(os.getcwd(), 'test_fs', 'dir-valid'), True) == 'directory', "is not a link")
+        self.assertTrue(fs.classify(os.path.join(os.getcwd(), 'test_fs', 'dir-invalid'), True) == 'broken', "is not a link")
+        self.assertTrue(fs.classify(os.path.join(os.getcwd(), 'test_fs', 'readme.txt'), True) == 'file', "is not a link")
+        self.assertTrue(fs.classify(os.path.join(os.getcwd(), 'test_fs', 'directory'), True) == 'directory', "is not a link")
+        self.assertTrue(fs.classify(os.path.join(os.getcwd(), 'test_fs', 'missing'), True) == 'broken', "is not a link")
+        # Do not follow symlinks
+        self.assertTrue(fs.classify(os.path.join(os.getcwd(), 'test_fs', 'file-valid'), False) == 'symlink', "is not a link")
+        self.assertTrue(fs.classify(os.path.join(os.getcwd(), 'test_fs', 'file-invalid'), False) == 'symlink', "is not a link")
+        self.assertTrue(fs.classify(os.path.join(os.getcwd(), 'test_fs', 'dir-valid'), False) == 'symlink', "is not a link")
+        self.assertTrue(fs.classify(os.path.join(os.getcwd(), 'test_fs', 'dir-invalid'), False) == 'symlink', "is not a link")
+        self.assertTrue(fs.classify(os.path.join(os.getcwd(), 'test_fs', 'readme.txt'), False) == 'file', "is not a link")
+        self.assertTrue(fs.classify(os.path.join(os.getcwd(), 'test_fs', 'directory'), False) == 'directory', "is not a link")
+        self.assertTrue(fs.classify(os.path.join(os.getcwd(), 'test_fs', 'missing'), False) == 'broken', "is not a link")
+        pass
+
 unittest.main()
