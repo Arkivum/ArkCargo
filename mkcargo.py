@@ -46,7 +46,7 @@ parser.set_defaults(sys_uname = platform.uname())
 parser.set_defaults(startTime = datetime.datetime.now())
 parser.set_defaults(processedFile = "")
 
-parser.add_argument('--version', action='version', version='%(prog)s 0.4.0')
+parser.add_argument('--version', action='version', version='%(prog)s 0.4.1')
 
 parser.add_argument('-s', dest='followSymlink', action='store_true', help='follow symlinks and ingest their target, defaults to recording symlinks and their targets in the symlink file.')
 
@@ -384,9 +384,9 @@ def loadStats(fields):
                             stats[row['Category']][field] = int(row[field])
 
         # even if we are reworking failed files, we'll start with a new cargo file
-        stats['chunk'] = {}
-        stats['chunk']['Vol'] = 0
-        stats['chunk']['Num'] = cargoCount
+        stats['cargo'] = {}
+        stats['cargo']['Vol'] = 0
+        stats['cargo']['Num'] = cargoCount
 
     except ValueError:
         sys.stderr.write("Can't import stats to file %s (error: %s)\n"%(file, ValueError))
@@ -404,9 +404,9 @@ def initStats(fields):
                 stats[category]['Category'] = category
             else:   
                 stats[category][field] = 0
-    stats['chunk'] = {}
-    stats['chunk']['Vol'] = 0
-    stats['chunk']['Num'] = 0
+    stats['cargo'] = {}
+    stats['cargo']['Vol'] = 0
+    stats['cargo']['Num'] = 0
 
     return stats;
 
@@ -417,26 +417,36 @@ def updateStats(file, size):
     filePath = ""
     bytes = int(size)
 
-    if (stats['chunk']['Vol'] + bytes) > args.cargoMaxBytes:
-        stats['chunk']['Num'] += 1 
-        newFile = True
-    else:
-        stats['chunk']['Vol'] += bytes
+    if file == "cargo":
+        if (stats[file]['Vol'] + bytes) > args.cargoMaxBytes:
+            stats[file]['Num'] += 1 
+            stats[file]['Vol'] = bytes
+            newFile = True
+        else:
+            stats[file]['Vol'] += bytes
 
     if file == "cargo":
-        filename = args.name + "-" +  args.timestamp + "-" + str(stats['chunk']['Num']).zfill(args.cargoPad) + args.cargoExt
-        filePath = os.path.join(args.filebase, 'cargos', filename)
-        file = file + str(stats['chunk']['Num']).zfill(args.cargoPad)
+        filename = args.name + "-" +  args.timestamp + "-" + str(stats[file]['Num']).zfill(args.cargoPad) + args.cargoExt
+        file = file + str(stats[file]['Num']).zfill(args.cargoPad)
         if file not in args.includeStats['cargo']:
             #add cargo file to list
             args.includeStats['cargo'].append(file)
-    elif file in args.statsDir:
-        filePath = os.path.join(args.filebase, 'stats', file)
-    elif file in args.snapshotDir:
-        filename = str(stats['chunk']['Num']).zfill(args.cargoPad) + "." + file
-        filePath = os.path.join(args.filebase, 'snapshot', filename)
+
+            #initialise new stats line
+            stats[file] = {}
+            for field in statsFields:
+                if field == 'Category':
+                    stats[file]['Category'] = file
+                else:  
+                    stats[file][field] = 0
+            filePath = os.path.join(args.filebase, 'cargos', filename)
     else:
-        filePath = os.path.join(args.filebase, file)
+        if file in args.statsDir:
+            filePath = os.path.join(args.filebase, 'stats', file)
+        elif file in args.snapshotDir:
+            filePath = os.path.join(args.filebase, 'snapshot', file)
+        else:
+            filePath = os.path.join(args.filebase, file)
 
     if file not in stats.keys():
         #initialise new stats line
@@ -1195,6 +1205,7 @@ if __name__ == '__main__':
             queueMsg("\"max\", \"file\", \"dir\", \"results\"")
         # lets just hang back and wait for the queues to empty
         print "If you need to pause this job, press Ctrl-C once"
+        time.sleep(1)
         while not terminateThreads:
             if args.debug:
                 queueMsg("\"%s\", \"%s\", \"%s\", \"%s\"\n"%(args.queueParams['max'], fileQueue.qsize(), dirQueue.qsize(), resultsQueue.qsize()))
