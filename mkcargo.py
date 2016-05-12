@@ -59,7 +59,7 @@ parser.add_argument('-t', nargs='?', metavar='yyyymmddThhmmss', dest='timestamp'
 
 parser.add_argument('-o', nargs='?', metavar='output directory', dest='output', type=str, default="output", help='the directory under which to write the output. <output directory>/<name>/<timestamp>/<output files>.')
 
-parser.add_argument('-cargoMax', dest='cargoMax', default='100GB', help=argparse.SUPPRESS)
+parser.add_argument('-cargoMax', dest='cargoMax', default='10GB', help=argparse.SUPPRESS)
 
 parser.add_argument('--exists', dest='prepMode', choices=['clean', 'preserve', 'append'], default='preserve', help=argparse.SUPPRESS)
 parser.add_argument('--clean', action='store_true', help='if output directory exists delete its contents before process, by default previous output is preserved.')
