@@ -1,0 +1,13 @@
+./.hiddenfile
+./changedfroma2b.txt
+./onlyinA.txt
+./sameinboth.txt
+./sameinboth/changedfroma2b.txt
+./sameinboth/onlyinA.txt
+./sameinboth/sameinboth.txt
+./sameinboth/onlyinA/moreinA.txt
+./sameinboth/onlyinA/onlyA.txt
+./sameinboth/onlyinA/onlyinA.txt
+./onlyinA/changedfroma2b.txt
+./onlyinA/onlyinA.txt
+./onlyinA/sameinboth.txt

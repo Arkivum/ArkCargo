@@ -1,0 +1,776 @@
+./Arkivum - ingest workflow.pptx
+./Arkivum Feature-Benerfit Statements for 2015.docx
+./Arkivum Gateway Infrastructure - Carrier & ISP edition.png
+./Arkivum Service Configuration and Management Training (CRP comments).pdf
+./Chris @ Sites - Arkivum.url
+./chris.pates_arkivum.com-signing.asc
+./Datasets-SF.xlsx
+./fubar2.txt
+./ingest time projection (detailed) v0-09.xlsx
+./Proposed Architecture.pptx
+./Read Win32 error codes.pdf
+./test.url
+./~$Arkivum Cost Modelling v1-2.xlsx
+./~$Datasets v0-02.xlsx
+./TCO modelling/.DS_Store
+./TCO modelling/Arkivum Cost Modelling v1-3.xlsx
+./TCO modelling/Arkivum Cost Modelling v1-4.xlsx
+./TCO modelling/Arkivum Cost Modelling v1.xlsm
+./TCO modelling/Arkivum Cost Modelling v1a.xlsm
+./TCO modelling/Arkivum Cost Modelling v1b.xlsm
+./TCO modelling/Arkivum Cost Modelling v1c.xlsm
+./TCO modelling/Arkivum Cost Modelling v1d.xlsm
+./TCO modelling/Arkivum Cost Modelling v1e.xlsm
+./TCO modelling/Arkivum Cost Models for Nottingham.xlsx
+./TCO modelling/Dynamic list.xlsx
+./TCO modelling/Janet Data Archive Service Framework Pricing.pdf
+./TCO modelling/Reseller Price List Jan 2015 SM 150127.xlsx
+./TCO modelling/SF-export.xlsx
+./TCO modelling/SF_pricebook.xls
+./TCO modelling/TCO calculator input and output.pdf
+./TCO modelling/TCO calculator v10.xlsm
+./TCO modelling/TCO calculator v11.xlsm
+./TCO modelling/TCO calculator v12.xlsm
+./TCO modelling/TCO calculator v13.xlsm
+./TCO modelling/TCO calculator v13a.xlsm
+./TCO modelling/TCO calculator v13b (feckling for Nottingham).xlsm
+./TCO modelling/TCO calculator v13b.xlsm
+./TCO modelling/TCO calculator v2.xlsx
+./TCO modelling/TCO calculator v3.xlsx
+./TCO modelling/TCO calculator v4.xlsx
+./TCO modelling/TCO calculator v5.xlsm
+./TCO modelling/TCO calculator v6.xlsm
+./TCO modelling/TCO calculator v7.xlsm
+./TCO modelling/TCO calculator v8.xlsm
+./TCO modelling/TCO calculator v9.xlsm
+./TCO modelling/TCO calculator.xlsx
+./TCO modelling/TCO Model_SM_V1.xlsx
+./TCO modelling/~$Dynamic list.xlsx
+./Standard Technical Docs/.DS_Store
+./Standard Technical Docs/Arkivum Gateway Appliance Installation Requirements.pdf
+./Standard Technical Docs/Arkivum Service Configuration and Management Guide.pdf
+./Standard Technical Docs/Arkivum-Service-Definition.pdf
+./Shared with Everyone/.DS_Store
+./Sanger (WTSI)/.DS_Store
+./Sanger (WTSI)/WTSI - Layer 2 Logical.png
+./Sanger (WTSI)/WTSI - Layer 2.png
+./Sanger (WTSI)/WTSI - Layer 3 Tennant.png
+./Sanger (WTSI)/WTSI - Topology.graffle/data.plist
+./Sanger (WTSI)/WTSI - Topology.graffle/image1.pdf
+./Sanger (WTSI)/WTSI - Topology.graffle/image3.pdf
+./Sanger (WTSI)/WTSI - Topology.graffle/image4.pdf
+./Sanger (WTSI)/WTSI - Topology.graffle/image5.pdf
+./Sanger (WTSI)/WTSI - Topology.graffle/image6.png
+./Reporting/.DS_Store
+./Reporting/custStats.sql
+./Reporting/Example per pool reporting.xlsx
+./Reporting/filebypool.sql
+./Reporting/poolStats.sql
+./Reporting/TabPoolStats.sql
+./Reporting/ulcc-stats/.DS_Store
+./Reporting/ulcc-stats/createstats.sh
+./Reporting/ulcc-stats/filepaths.sh
+./Reporting/ulcc-stats/hexfiles.sh
+./Reporting/ulcc-stats/hextest.sh
+./Reporting/ulcc-stats/newstats.sh
+./Reporting/ulcc-stats/stats.sh
+./Reporting/ulcc-stats/test.sh
+./Reporting/ulcc-stats/ulccsh.tar
+./Reporting/ulcc-stats/ulccsql.tar
+./Reporting/ulcc-stats/sql/ambercount.sql
+./Reporting/ulcc-stats/sql/filepaths.sql
+./Reporting/ulcc-stats/sql/filepathsR.sql
+./Reporting/ulcc-stats/sql/greencount.sql
+./Reporting/ulcc-stats/sql/jiscA.sql
+./Reporting/ulcc-stats/sql/jiscBS.sql
+./Reporting/ulcc-stats/sql/jiscG.sql
+./Reporting/ulcc-stats/sql/jiscR.sql
+./Reporting/ulcc-stats/sql/kingsA.sql
+./Reporting/ulcc-stats/sql/kingsBS.sql
+./Reporting/ulcc-stats/sql/kingsG.sql
+./Reporting/ulcc-stats/sql/kingsR.sql
+./Reporting/ulcc-stats/sql/linnA.sql
+./Reporting/ulcc-stats/sql/linnBS.sql
+./Reporting/ulcc-stats/sql/linnG.sql
+./Reporting/ulcc-stats/sql/linnR.sql
+./Reporting/ulcc-stats/sql/redcount.sql
+./Reporting/ulcc-stats/sql/ulccA.sql
+./Reporting/ulcc-stats/sql/ulccBS.sql
+./Reporting/ulcc-stats/sql/ulccG.sql
+./Reporting/ulcc-stats/sql/ulccR.sql
+./Reporting/ulcc-stats/sql/filepaths/jisc_amber.sql
+./Reporting/ulcc-stats/sql/filepaths/jisc_green.sql
+./Reporting/ulcc-stats/sql/filepaths/jisc_red.sql
+./Reporting/ulcc-stats/sql/filepaths/kings_amber.sql
+./Reporting/ulcc-stats/sql/filepaths/kings_green.sql
+./Reporting/ulcc-stats/sql/filepaths/kings_red.sql
+./Reporting/ulcc-stats/sql/filepaths/linn_amber.sql
+./Reporting/ulcc-stats/sql/filepaths/linn_green.sql
+./Reporting/ulcc-stats/sql/filepaths/linn_red.sql
+./Reporting/ulcc-stats/sql/filepaths/ulcc_amber.sql
+./Reporting/ulcc-stats/sql/filepaths/ulcc_green.sql
+./Reporting/ulcc-stats/sql/filepaths/ulcc_red.sql
+./Reporting/ulcc-stats/output/.txt
+./Reporting/ulcc-stats/output/filepaths.list
+./Reporting/ulcc-stats/output/fp_sort.list
+./Reporting/ulcc-stats/output/md5filelist.txt
+./Reporting/ulcc-stats/output/missingfile.list
+./Reporting/ulcc-stats/output/nonhexfilelist.txt
+./Reporting/ulcc-stats/output/scripts.tar
+./Reporting/ulcc-stats/output/vs.list
+./Reporting/ulcc-stats/output/vs_fmt_sort.list
+./Reporting/ulcc-stats/output/vs_format.list
+./Reporting/ulcc-stats/output/test/jisc_Amber_2015-01-30.txt
+./Reporting/ulcc-stats/output/test/jisc_Amber_2015-06-12.txt
+./Reporting/ulcc-stats/output/test/jisc_Green_2015-01-30.txt
+./Reporting/ulcc-stats/output/test/jisc_Green_2015-06-12.txt
+./Reporting/ulcc-stats/output/test/jisc_Red_2015-01-30.txt
+./Reporting/ulcc-stats/output/test/jisc_Red_2015-06-12.txt
+./Reporting/ulcc-stats/output/test/kings_Amber_2015-01-30.txt
+./Reporting/ulcc-stats/output/test/kings_Amber_2015-06-12.txt
+./Reporting/ulcc-stats/output/test/kings_Green_2015-01-30.txt
+./Reporting/ulcc-stats/output/test/kings_Green_2015-06-12.txt
+./Reporting/ulcc-stats/output/test/kings_Red_2015-01-30.txt
+./Reporting/ulcc-stats/output/test/kings_Red_2015-06-12.txt
+./Reporting/ulcc-stats/output/test/linn_Amber_2015-01-30.txt
+./Reporting/ulcc-stats/output/test/linn_Amber_2015-06-12.txt
+./Reporting/ulcc-stats/output/test/linn_Green_2015-01-30.txt
+./Reporting/ulcc-stats/output/test/linn_Green_2015-06-12.txt
+./Reporting/ulcc-stats/output/test/linn_Red_2015-01-30.txt
+./Reporting/ulcc-stats/output/test/linn_Red_2015-06-12.txt
+./Reporting/ulcc-stats/output/test/Summary_2015-01-30.txt
+./Reporting/ulcc-stats/output/test/Summary_2015-06-12.txt
+./Reporting/ulcc-stats/output/test/ulcc_Amber_2015-01-30.txt
+./Reporting/ulcc-stats/output/test/ulcc_Amber_2015-06-12.txt
+./Reporting/ulcc-stats/output/test/ulcc_Green_2015-01-30.txt
+./Reporting/ulcc-stats/output/test/ulcc_Green_2015-06-12.txt
+./Reporting/ulcc-stats/output/test/ulcc_Red_2015-01-30.txt
+./Reporting/ulcc-stats/output/test/ulcc_Red_2015-06-12.txt
+./quaffer/.DS_Store
+./quaffer/dell-kmm-rack-console-spec-en.pdf
+./quaffer/Dell_PowerEdge_R730xd_SpecSheet.pdf
+./quaffer/hardigg-classic-rack-size-chart.pdf
+./quaffer/Hardigg-Rack-Mount-Brochure.pdf
+./quaffer/Large Dataset Ingestion Service.pdf
+./quaffer/MD_SAS_Array.pdf
+./Provisioning/.DS_Store
+./Provisioning/WO 39803 - UoL SOAS .pdf
+./Provisioning/WO-01110 - Exco InTouch 2015-02-06.pdf
+./Provisioning/WO-IC409369 Oxford Brookes University 2015-02-05.pdf
+./Provisioning/Work Order - Nottingham Trent University.docx
+./Provisioning/WOxxxx NTU 2015-04-16 signed.pdf
+./Presentations/.DS_Store
+./Presentations/Arkivum - ingest workflow.pptx
+./Presentations/Arkivum 100 Ingest Process.mp4
+./Presentations/Arkivum 21-10-2014.pptx
+./Presentations/Arkivum Background.pptx
+./Presentations/Arkivum100 - workflow.pptx
+./Presentations/Escrow Restore WALKTHROUGH.pptx
+./Presentations/WJW-ukpure-datasets-wg-feb-2015.ppt
+./Presentations/~$Arkivum - ingest workflow.pptx
+./Presentations/~$Escrow Restore WALKTHROUGH.pptx
+./Presentations/Presentation2/Slide1.png
+./Presentations/Onsite stack.graffle/data.plist
+./Presentations/Onsite stack.graffle/image1.pdf
+./Presentations/Onsite stack.graffle/image2.pdf
+./Presentations/Onsite stack.graffle/image3.png
+./Presentations/Onsite stack.graffle/image4.pdf
+./Presentations/Onsite stack.graffle/image7.pdf
+./Presentations/escrow restore/.DS_Store
+./Presentations/escrow restore/escrow restore explained.graffle/data.plist
+./Presentations/escrow restore/escrow restore explained.graffle/image1.pdf
+./Presentations/escrow restore/escrow restore explained.graffle/image10.png
+./Presentations/escrow restore/escrow restore explained.graffle/image11.jpg
+./Presentations/escrow restore/escrow restore explained.graffle/image15.jpg
+./Presentations/escrow restore/escrow restore explained.graffle/image2.png
+./Presentations/escrow restore/escrow restore explained.graffle/image3.png
+./Presentations/escrow restore/escrow restore explained.graffle/image4.png
+./Presentations/escrow restore/escrow restore explained.graffle/image6.icns
+./Presentations/escrow restore/escrow restore explained.graffle/image7.png
+./Presentations/Arkivum Desktop/Slide1.png
+./Presentations/Arkivum Background/Slide1.png
+./presales support/.DS_Store
+./presales support/Arkivum - Gateway Appliances.pptx
+./presales support/Arkivum - ingest workflow.pptx
+./presales support/Arkivum Territory Map v3.kmz
+./presales support/Arkivum.clr
+./presales support/Initial Deliverables CRP 2014-12-11.docx
+./presales support/Presales Utilisation.xlsx
+./presales support/TCO/.DS_Store
+./presales support/TCO/Arkivum Cost Modelling v1-3.xlsx
+./presales support/TCO/Arkivum Cost Modelling v1-4.xlsx
+./presales support/TCO/Arkivum Cost Modelling v1-5.xlsx
+./presales support/TCO/Arkivum Cost Modelling v1-6.xlsx
+./presales support/TCO/BF952100
+./presales support/TCO/SF_pricebook.xls
+./presales support/TCO/TCO calculator v11.xlsm
+./presales support/TCO/~$Arkivum Cost Modelling v1-5.xlsx
+./presales support/TCO/archive/.DS_Store
+./presales support/TCO/archive/Arkivum Cost Modelling v1.xlsm
+./presales support/TCO/archive/TCO calculator v10.xlsm
+./presales support/TCO/archive/TCO calculator v8.xlsm
+./presales support/TCO/archive/TCO calculator.xlsx
+./presales support/screenshots/astor 3.0.2 - Data Pools.png
+./presales support/screenshots/astor 3.0.2 - file properties.png
+./presales support/screenshots/astor 3.0.2 browse.png
+./presales support/screenshots/astor 3.0.2 Dashboard.png
+./presales support/screenshots/astor 3.0.2 encryption.png
+./presales support/map data WiP/.DS_Store
+./presales support/map data WiP/Arkivum - HFE Account Assignments.kmz
+./presales support/map data WiP/Arkivum Territory Map - MME, v2.kmz
+./presales support/map data WiP/Arkivum Territory Map - MME, v3.kmz
+./presales support/map data WiP/Arkivum Territory Map - MME, v4.kmz
+./presales support/map data WiP/Arkivum Territory Map v2.kmz
+./presales support/map data WiP/Arkivum Territory Map v3.kmz
+./presales support/map data WiP/Arkivum Territory Map.kmz
+./presales support/map data WiP/HE Institutions (unassigned).kml
+./presales support/Cache Sizing/v0.01.xlsx
+./Partners/.DS_Store
+./Partners/PURE/PURE walkthough.pptx
+./Partners/PURE/PURE workflows.pptx
+./Partners/McAfee/McAfee-ms-anti-corruption-policies.pdf
+./Partners/McAfee/McAfee-ms-gmet-third-parties.pdf
+./Partners/McAfee/McAfee-standards-of-conduct.pdf
+./Partners/McAfee/MCAfee_Product_Overview_Battlecards.pdf
+./Partners/FigShare/.DS_Store
+./Partners/FigShare/Arkivum and figshare integration FAQ.PDF
+./OmniGraffle Diagrams/.DS_Store
+./OmniGraffle Diagrams/File Deletion Approach.graffle
+./OmniGraffle Diagrams/ISP Infrastructure.graffle/data.plist
+./OmniGraffle Diagrams/ISP Infrastructure.graffle/image1.png
+./OmniGraffle Diagrams/big import.graffle/data.plist
+./OmniGraffle Diagrams/big import.graffle/image1.pdf
+./OmniGraffle Diagrams/big import.graffle/image2.pdf
+./OmniGraffle Diagrams/big import.graffle/image3.pdf
+./My Presentations/ Arkivum Corporate Deck_v1.0.pptx
+./My Presentations/.DS_Store
+./My Presentations/Arkivum - ingest workflow (latest).pptx
+./My Presentations/Arkivum - ingest workflow (narrated) 2.pptx
+./My Presentations/Arkivum - ingest workflow (narrated).key
+./My Presentations/Arkivum - ingest workflow (narrated).pptx
+./My Presentations/Arkivum - ingest workflow.mov
+./My Presentations/Arkivum 100 Service.mov
+./My Presentations/media/.DS_Store
+./My Presentations/media/image1.emf
+./My Presentations/media/image10.PNG
+./My Presentations/media/image11.PNG
+./My Presentations/media/image12.PNG
+./My Presentations/media/image2.png
+./My Presentations/media/image3.PNG
+./My Presentations/media/image4.PNG
+./My Presentations/media/image5.PNG
+./My Presentations/media/image6.PNG
+./My Presentations/media/image7.PNG
+./My Presentations/media/image8.PNG
+./My Presentations/media/image9.PNG
+./My Presentations/media/media1.wav
+./My Presentations/media/media10.wav
+./My Presentations/media/media11.wav
+./My Presentations/media/media2.wav
+./My Presentations/media/media3.wav
+./My Presentations/media/media4.wav
+./My Presentations/media/media5.wav
+./My Presentations/media/media6.wav
+./My Presentations/media/media7.wav
+./My Presentations/media/media8.wav
+./My Presentations/media/media9.wav
+./Integrations/.DS_Store
+./Integrations/Arkivio Autostor Site Survey - Arkivum.xlsx
+./Integrations/Content Management Interoperability Services -- specification v0.5.zip
+./Integrations/DocAve_Archiver_for_SharePoint_Records_Management.pdf
+./Integrations/Varonis/Datasheet_-_Varonis_Data_Governance_Suite.pdf
+./Integrations/Varonis/Datasheet_-_Varonis_Data_Transport_Engine.pdf
+./Integrations/Qstar Network Migrator/.DS_Store
+./Integrations/Qstar Network Migrator/draft pricing.txt
+./Integrations/Qstar Network Migrator/qnm_tool_final.pdf
+./Integrations/Qstar Network Migrator/QStar Overview for QNM.pptx
+./Integrations/Qstar Network Migrator/qstar_network_migrator_a4.pdf
+./Integrations/Qstar Network Migrator/QStar_Network_Migrator_Manual_QNM_v15 copy.pdf
+./Integrations/iRods/PHE_Bioinformatics-Archiving_Storage_eval-2013.pdf
+./Integrations/imagic-uk/ims_bio_overview.pdf
+./Integrations/DSpace (atmire)/.DS_Store
+./Integrations/DSpace (atmire)/2015-03-24-Nottingham-Data-Repository-ARKIVUM-WORKPACKAGE.pdf
+./Integrations/DSpace (atmire)/DSpace retrieval workflow.png
+./Integrations/DSpace (atmire)/DSpace+Arkivum Integration.png
+./Integrations/DocAve/DocAve_6_Installation_Guide.pdf
+./Integrations/DocAve/DocAve_Connector_Use_Case.pdf
+./Integrations/Content Management Interoperability Services -- specification v0.5/.DS_Store
+./Integrations/Content Management Interoperability Services -- specification v0.5/CMIS -- Appendices v0.5.pdf
+./Integrations/Content Management Interoperability Services -- specification v0.5/CMIS -- Appendices v0.5.xps
+./Integrations/Content Management Interoperability Services -- specification v0.5/CMIS Part I -- Domain Model v0.5.pdf
+./Integrations/Content Management Interoperability Services -- specification v0.5/CMIS Part I -- Domain Model v0.5.xps
+./Integrations/Content Management Interoperability Services -- specification v0.5/CMIS Part II -- REST-Atom Binding v0.5.pdf
+./Integrations/Content Management Interoperability Services -- specification v0.5/CMIS Part II -- REST-Atom Binding v0.5.xps
+./Integrations/Content Management Interoperability Services -- specification v0.5/CMIS Part II -- Web Services Binding v0.5.pdf
+./Integrations/Content Management Interoperability Services -- specification v0.5/CMIS Part II -- Web Services Binding v0.5.xps
+./Integrations/Content Management Interoperability Services -- specification v0.5/Schemas/APP.xsd
+./Integrations/Content Management Interoperability Services -- specification v0.5/Schemas/ATOM4CMIS.xsd
+./Integrations/Content Management Interoperability Services -- specification v0.5/Schemas/CMIS.xsd
+./Integrations/Content Management Interoperability Services -- specification v0.5/Schemas/cmisMessageTypes.xsd
+./Integrations/Content Management Interoperability Services -- specification v0.5/Schemas/DiscoveryService.wsdl
+./Integrations/Content Management Interoperability Services -- specification v0.5/Schemas/Example-AllowableActions.xml
+./Integrations/Content Management Interoperability Services -- specification v0.5/Schemas/Example-DocumentEntry.xml
+./Integrations/Content Management Interoperability Services -- specification v0.5/Schemas/Example-DocumentPWCEntry.xml
+./Integrations/Content Management Interoperability Services -- specification v0.5/Schemas/Example-FolderChildren.xml
+./Integrations/Content Management Interoperability Services -- specification v0.5/Schemas/Example-FolderDescendants.xml
+./Integrations/Content Management Interoperability Services -- specification v0.5/Schemas/Example-FolderEntry.xml
+./Integrations/Content Management Interoperability Services -- specification v0.5/Schemas/Example-PolicyEntry.xml
+./Integrations/Content Management Interoperability Services -- specification v0.5/Schemas/Example-Query.xml
+./Integrations/Content Management Interoperability Services -- specification v0.5/Schemas/Example-RelationshipEntry.xml
+./Integrations/Content Management Interoperability Services -- specification v0.5/Schemas/Example-Service.xml
+./Integrations/Content Management Interoperability Services -- specification v0.5/Schemas/Example-Type.xml
+./Integrations/Content Management Interoperability Services -- specification v0.5/Schemas/MultiFilingService.wsdl
+./Integrations/Content Management Interoperability Services -- specification v0.5/Schemas/NavigationService.wsdl
+./Integrations/Content Management Interoperability Services -- specification v0.5/Schemas/ObjectService.wsdl
+./Integrations/Content Management Interoperability Services -- specification v0.5/Schemas/PolicyService.wsdl
+./Integrations/Content Management Interoperability Services -- specification v0.5/Schemas/RelationshipService.wsdl
+./Integrations/Content Management Interoperability Services -- specification v0.5/Schemas/RepositoryService.wsdl
+./Integrations/Content Management Interoperability Services -- specification v0.5/Schemas/VersioningService.wsdl
+./Integrations/Content Management Interoperability Services -- specification v0.5/Schemas/xhtml1-strict.xsd
+./Integrations/Content Management Interoperability Services -- specification v0.5/Schemas/xml.xsd
+./installations/.DS_Store
+./installations/Appliance Install Reqs Guide - annotated.pdf
+./installations/Arkivum ACLs v2.xlsx
+./installations/Arkivum ACLs.pdf
+./installations/Arkivum ACLs.xlsx
+./installations/Arkivum iDRAC - ACLs.pdf
+./installations/Arkivum Service Configuration and Management Training CRP comments.pdf
+./installations/Multi-Tennent 1.jpg
+./installations/Multi-Tennent 2.jpg
+./installations/multi-tennent 3.jpg
+./installations/What happens when we install.docx
+./Data Movers/.DS_Store
+./Data Movers/b.7.2.0.16r.vga.ova
+./Data Movers/NTP Software Precision Tiering/.DS_Store
+./Data Movers/NTP Software Precision Tiering/Comprehensive Stubs Overview.pdf
+./Data Movers/NTP Software Precision Tiering/Datasheet NTP Software File Reporter 4629EF.pdf
+./Data Movers/NTP Software Precision Tiering/NTP Software Precision Tiering  Installation Prerequisite Checklist_4625EF (1).pdf
+./Data Movers/NTP Software Precision Tiering/NTP Software Quick Start - Storage Assessment for Users_Rev1.0_4304EF.pdf
+./Data Movers/NTP Software Precision Tiering/Tiering Benefits.pdf
+./Data Movers/NTP Software Precision Tiering/ViPR File Archiving Service Datasheet_4703EF.pdf
+./Data Movers/NTP Software Precision Tiering/ViPR File Archiving Service Internal 16Oct 14 b.pptx
+./Customers/.DS_Store
+./Customers/Imperial College London 2015-03-12.docx
+./Customers/Shore Capital proposal aav1.docx
+./Customers/V&A/.DS_Store
+./Customers/V&A/V&A - Onsite stack.png
+./Customers/V&A/~$A Digital Asset Preservation and Archiving Options.docx
+./Customers/V&A/V&A - Onsite stack.graffle/data.plist
+./Customers/V&A/V&A - Onsite stack.graffle/image1.pdf
+./Customers/V&A/V&A - Onsite stack.graffle/image2.pdf
+./Customers/V&A/V&A - Onsite stack.graffle/image3.png
+./Customers/V&A/V&A - Onsite stack.graffle/image4.pdf
+./Customers/University of the West of England/.DS_Store
+./Customers/University of the West of England/359393.docx
+./Customers/University of Reading/.DS_Store
+./Customers/University of Reading/University of Reading - Response.docx
+./Customers/University of Nottingham/.DS_Store
+./Customers/University of Nottingham/Service Cost Models for University of Nottingham v1-6.xlsx
+./Customers/University of Nottingham/Service Models for Nottingham v1-6.xlsb
+./Customers/University of Manchester/.DS_Store
+./Customers/University of Manchester/diagram for UofM.vdx
+./Customers/University of Manchester/MoU Use-Cases CRP aav1.docx
+./Customers/University of Manchester/Use Cases.docx
+./Customers/University of Manchester/diagram for UofM.graffle/data.plist
+./Customers/University of Manchester/diagram for UofM.graffle/image1.png
+./Customers/Uni of Birmingham/.DS_Store
+./Customers/Uni of Birmingham/Possible figshare solution.pptx
+./Customers/SOAS/SOAS ELAR integration pitch Nov 2015 jac1 crp.docx
+./Customers/SOAS/SOAS_LATS_integration.docx
+./Customers/Salford Proposal/.DS_Store
+./Customers/Salford Proposal/Appendix 1 - Janet Framework.doc
+./Customers/Salford Proposal/Appendix 2 - Janet Framework – Arkivum Service Order.doc
+./Customers/Salford Proposal/Appendix 3 - Figshare Software, Support and Maintenance Licence (deleted d5aa169acbb65bc0a52d3035197c962e).docx
+./Customers/Salford Proposal/Figshare-Arkivum-IR Salford.pptx
+./Customers/Salford Proposal/Overview of Integrated Arkivum-figshare integrated solution.docx
+./Customers/Salford Proposal/Salford University.docx
+./Customers/Salford Proposal/The University of Salford v1G (Chris Pates's conflicted copy 2015-03-18).docx
+./Customers/Salford Proposal/The University of Salford v1H (figshare).docx
+./Customers/Salford Proposal/The University of Salford v1H.docx
+./Customers/Salford Proposal/The University of Salford v1I.docx
+./Customers/Salford Proposal/submission v1-5/.DS_Store
+./Customers/Salford Proposal/submission v1-5/The University of Salford v1-5 280515.docx
+./Customers/Salford Proposal/submission v1-4/.DS_Store
+./Customers/Salford Proposal/submission v1-4/Appendix 3 - Figshare Software, Support and Maintenance Licence - figshare AWS storage.docx
+./Customers/Salford Proposal/submission v1-4/The University of Salford v1-4 with TB edits.docx
+./Customers/Salford Proposal/submission v1-4/The University of Salford v1-4.docx
+./Customers/Salford Proposal/submission v1-3/.DS_Store
+./Customers/Salford Proposal/submission v1-3/Appendix 1 - Janet Framework.pdf
+./Customers/Salford Proposal/submission v1-3/Appendix 2 - Janet Framework – Arkivum Service Order.pdf
+./Customers/Salford Proposal/submission v1-3/Appendix 3a - Figshare Software, Support and Maintenance Licence - Salford AWS storage.docx
+./Customers/Salford Proposal/submission v1-3/Appendix 3a - Figshare Software, Support and Maintenance Licence - Salford AWS storage.pdf
+./Customers/Salford Proposal/submission v1-3/Appendix 3b - Figshare Software, Support and Maintenance Licence - figshare AWS storage.docx
+./Customers/Salford Proposal/submission v1-3/Appendix 3b - Figshare Software, Support and Maintenance Licence - figshare AWS storage.pdf
+./Customers/Salford Proposal/submission v1-3/The University of Salford v1-3 clean.docx
+./Customers/Salford Proposal/submission v1-3/The University of Salford v1-3 MME with TB edits with additional MME.docx
+./Customers/Salford Proposal/submission v1-3/The University of Salford v1-3 with tracked changes.2.pdf
+./Customers/Salford Proposal/submission v1-3/The University of Salford v1-3 with tracked changes.docx
+./Customers/Salford Proposal/submission v1-3/The University of Salford v1-3 with tracked changes.pdf
+./Customers/Salford Proposal/submission v1-3/The University of Salford v1-3, MME with TB edits.docx
+./Customers/Salford Proposal/submission v1-3/The University of Salford v1-3, MME.docx
+./Customers/Salford Proposal/submission v1-3/The University of Salford v1-3.pdf
+./Customers/Salford Proposal/submission v1-1/.DS_Store
+./Customers/Salford Proposal/submission v1-1/Appendix 1 - Janet Framework.pdf
+./Customers/Salford Proposal/submission v1-1/Appendix 2 - Janet Framework – Arkivum Service Order.pdf
+./Customers/Salford Proposal/submission v1-1/Appendix 3 - Figshare Software, Support and Maintenance Licence - Salford AWS storage.docx
+./Customers/Salford Proposal/submission v1-1/Appendix 3 - Figshare Software, Support and Maintenance Licence - Salford AWS storage.pdf
+./Customers/Salford Proposal/submission v1-1/Arkivum and Figshare Proposal to The University of Salford - Delta.docx
+./Customers/Salford Proposal/submission v1-1/Arkivum and Figshare Proposal to The University of Salford - Tracked Changes.2.pdf
+./Customers/Salford Proposal/submission v1-1/Arkivum and Figshare Proposal to The University of Salford - Tracked Changes.3.pdf
+./Customers/Salford Proposal/submission v1-1/Arkivum and Figshare Proposal to The University of Salford - Tracked Changes.pdf
+./Customers/Salford Proposal/submission v1-1/The University of Salford v1-1.docx
+./Customers/Salford Proposal/submission v1-1/The University of Salford v1-1.pdf
+./Customers/Salford Proposal/submission v1-1/The University of Salford v1-2.docx
+./Customers/Salford Proposal/submission v1-1/The University of Salford v1-2.pdf
+./Customers/Salford Proposal/archive/.DS_Store
+./Customers/Salford Proposal/archive/Figshare-Arkivum-IR Salford.pptx
+./Customers/Salford Proposal/archive/Overview of Integrated Arkivum-figshare integrated solution.docx
+./Customers/Salford Proposal/archive/Salford University (arkadmin’s MacBook Air's conflicted copy 2015-03-03).docx
+./Customers/Salford Proposal/archive/Salford University.docx
+./Customers/Salford Proposal/archive/The University of Salford v1-1.docx
+./Customers/Salford Proposal/archive/The University of Salford v1-2.docx
+./Customers/Salford Proposal/archive/The University of Salford v1-2.pdf
+./Customers/Salford Proposal/archive/The University of Salford v1-3.docx
+./Customers/Salford Proposal/archive/The University of Salford v1B.docx
+./Customers/Salford Proposal/archive/The University of Salford v1C (L6973's conflicted copy 2015-03-06).docx
+./Customers/Salford Proposal/archive/The University of Salford v1C.docx
+./Customers/Salford Proposal/archive/The University of Salford v1D.docx
+./Customers/Salford Proposal/archive/The University of Salford v1E (GR comments).docx
+./Customers/Salford Proposal/archive/The University of Salford v1F.docx
+./Customers/Salford Proposal/archive/The University of Salford v1G (figshare changes).docx
+./Customers/Salford Proposal/archive/The University of Salford v1G.docx
+./Customers/Salford Proposal/archive/The University of Salford v1H.docx
+./Customers/Salford Proposal/archive/The University of Salford v1I.docx
+./Customers/Salford Proposal/archive/submission/.DS_Store
+./Customers/Salford Proposal/archive/submission/Appendix 1 - Janet Framework.pdf
+./Customers/Salford Proposal/archive/submission/Appendix 2 - Janet Framework – Arkivum Service Order.pdf
+./Customers/Salford Proposal/archive/submission/Appendix 3 - Figshare Software, Support and Maintenance Licence.pdf
+./Customers/Salford Proposal/archive/submission/The University of Salford v1D (with appendices).pdf
+./Customers/Salford Proposal/archive/submission/The University of Salford v1D.pdf
+./Customers/Race Recording and Archiving/BHA Race Recording and Archiving Invitation to Tender.pdf
+./Customers/Race Recording and Archiving/Race Recording and Archiving Business Requirements.pdf
+./Customers/Queen Mary U of L/.DS_Store
+./Customers/Queen Mary U of L/ITQ July 2015 SM V1.03.docx
+./Customers/Queen Mary U of L/ITQ July 2015 v0-01.docx
+./Customers/Queen Mary U of L/SBCS_archive_ITQ.pdf
+./Customers/Queen Mary U of L/images/webmin - Users and Groups.png
+./Customers/NRS/.DS_Store
+./Customers/NRS/Invitation to Tender - Copy.docx
+./Customers/New Voice Media (NVM)/.DS_Store
+./Customers/New Voice Media (NVM)/NVM API security options 0-02.docx
+./Customers/New Voice Media (NVM)/NVM API security options.docx
+./Customers/New Voice Media (NVM)/NVM API Security.graffle/data.plist
+./Customers/New Voice Media (NVM)/NVM API Security.graffle/image1.pdf
+./Customers/New Voice Media (NVM)/NVM API Security.graffle/image2.png
+./Customers/New Voice Media (NVM)/NVM API Security.graffle/image3.png
+./Customers/New Voice Media (NVM)/NVM API Security.graffle/image4.png
+./Customers/New Voice Media (NVM)/NVM API Security.graffle/image5.ico
+./Customers/New Voice Media (NVM)/NVM API Security.graffle/image6.tiff
+./Customers/London Business School/LBS_requirements_options_v2.docx
+./Customers/London Business School/LBSrequirementsV2.docx
+./Customers/Kramlich Collection/.DS_Store
+./Customers/Kramlich Collection/20150802 - Arkivum RFP - FINAL.pdf
+./Customers/Kramlich Collection/Kramlich Collection (A-Stor 3.2 CDN).png
+./Customers/Kramlich Collection/Kramlich Collection encrypted video CDN.png
+./Customers/Kramlich Collection/Kramlich Collection v1.png
+./Customers/Kramlich Collection/Kramlich Collection v2.png
+./Customers/Kramlich Collection/Kramlich Collection.pdf
+./Customers/Kramlich Collection/Kramlich Collection.png
+./Customers/Kramlich Collection/Kramlich Collection.graffle/data.plist
+./Customers/Kramlich Collection/Kramlich Collection.graffle/image1.png
+./Customers/Kramlich Collection/Kramlich Collection.graffle/image10.png
+./Customers/Kramlich Collection/Kramlich Collection.graffle/image11.tiff
+./Customers/Kramlich Collection/Kramlich Collection.graffle/image12.png
+./Customers/Kramlich Collection/Kramlich Collection.graffle/image13.png
+./Customers/Kramlich Collection/Kramlich Collection.graffle/image14.tiff
+./Customers/Kramlich Collection/Kramlich Collection.graffle/image15.tiff
+./Customers/Kramlich Collection/Kramlich Collection.graffle/image16.tiff
+./Customers/Kramlich Collection/Kramlich Collection.graffle/image17.png
+./Customers/Kramlich Collection/Kramlich Collection.graffle/image18.tiff
+./Customers/Kramlich Collection/Kramlich Collection.graffle/image19.tiff
+./Customers/Kramlich Collection/Kramlich Collection.graffle/image2.pdf
+./Customers/Kramlich Collection/Kramlich Collection.graffle/image20.pdf
+./Customers/Kramlich Collection/Kramlich Collection.graffle/image21.tiff
+./Customers/Kramlich Collection/Kramlich Collection.graffle/image22.tiff
+./Customers/Kramlich Collection/Kramlich Collection.graffle/image23.tiff
+./Customers/Kramlich Collection/Kramlich Collection.graffle/image24.tiff
+./Customers/Kramlich Collection/Kramlich Collection.graffle/image3.png
+./Customers/Kramlich Collection/Kramlich Collection.graffle/image4.png
+./Customers/Kramlich Collection/Kramlich Collection.graffle/image6.png
+./Customers/Kramlich Collection/Kramlich Collection.graffle/image7.PNG
+./Customers/Kramlich Collection/Kramlich Collection.graffle/image8.PNG
+./Customers/Kramlich Collection/Kramlich Collection.graffle/image9.png
+./Customers/Kramlich Collection/Kramlich Collection v2.graffle/data.plist
+./Customers/Kramlich Collection/Kramlich Collection v2.graffle/image1.png
+./Customers/Kramlich Collection/Kramlich Collection v2.graffle/image10.tiff
+./Customers/Kramlich Collection/Kramlich Collection v2.graffle/image11.tiff
+./Customers/Kramlich Collection/Kramlich Collection v2.graffle/image12.tiff
+./Customers/Kramlich Collection/Kramlich Collection v2.graffle/image13.png
+./Customers/Kramlich Collection/Kramlich Collection v2.graffle/image14.png
+./Customers/Kramlich Collection/Kramlich Collection v2.graffle/image17.tiff
+./Customers/Kramlich Collection/Kramlich Collection v2.graffle/image18.png
+./Customers/Kramlich Collection/Kramlich Collection v2.graffle/image19.png
+./Customers/Kramlich Collection/Kramlich Collection v2.graffle/image2.pdf
+./Customers/Kramlich Collection/Kramlich Collection v2.graffle/image20.png
+./Customers/Kramlich Collection/Kramlich Collection v2.graffle/image3.png
+./Customers/Kramlich Collection/Kramlich Collection v2.graffle/image4.tiff
+./Customers/Kramlich Collection/Kramlich Collection v2.graffle/image5.tiff
+./Customers/Kramlich Collection/Kramlich Collection v2.graffle/image6.tiff
+./Customers/Kramlich Collection/Kramlich Collection v2.graffle/image7.tiff
+./Customers/Kramlich Collection/Kramlich Collection v2.graffle/image8.tiff
+./Customers/Kramlich Collection/Kramlich Collection v2.graffle/image9.pdf
+./Customers/Jisc Infinity/.DS_Store
+./Customers/Jisc Infinity/Jisc Infinity - aggregated ethernet links.png
+./Customers/Jisc Infinity/Jisc Infinity - Option 2 (vLANs and spanning tree).png
+./Customers/Jisc Infinity/Jisc Infinity - Option 2a (vLANs port groups).png
+./Customers/Jisc Infinity/Jisc Infinity - port teaming.png
+./Customers/Jisc Infinity/Jisc Infinity - Possible Topology.png
+./Customers/Jisc Infinity/Jisc Infinity - Topology (Arkivum managed switches).png
+./Customers/Jisc Infinity/Jisc Infinity - Topology (physical L3 switches).png
+./Customers/Jisc Infinity/Jisc Infinity - Topology.graffle/data.plist
+./Customers/Jisc Infinity/Jisc Infinity - Topology.graffle/image1.pdf
+./Customers/Jisc Infinity/Jisc Infinity - Topology.graffle/image3.pdf
+./Customers/Jisc Infinity/Jisc Infinity - Topology.graffle/image4.pdf
+./Customers/Jisc Infinity/Jisc Infinity - Topology.graffle/image5.pdf
+./Customers/Jisc Infinity/Jisc Infinity - Topology.graffle/image6.png
+./Customers/Jisc Infinity/Jisc Infinity - Topology.graffle/image8.tiff
+./Customers/Jerusalem Cinematheque Archives/.DS_Store
+./Customers/Jerusalem Cinematheque Archives/JC_TechnicalRequirements[1].pdf
+./Customers/Francis Crick Institute (The)/.DS_Store
+./Customers/Francis Crick Institute (The)/Arkivum ACLs.xlsx
+./Customers/Francis Crick Institute (The)/Crick responsibilities matrix aav2.xlsx
+./Customers/Francis Crick Institute (The)/Datasets v0-02.xlsm
+./Customers/Francis Crick Institute (The)/Datasets v0-03.xlsm
+./Customers/Francis Crick Institute (The)/Datasets v0-04.xlsm
+./Customers/Francis Crick Institute (The)/Datasets v0-05.xlsm
+./Customers/Francis Crick Institute (The)/Datasets v0-06.xlsm
+./Customers/Francis Crick Institute (The)/Datasets-CB.xlsx
+./Customers/Francis Crick Institute (The)/Datasets-SF (1).xlsx
+./Customers/Francis Crick Institute (The)/Datasets-SF.xlsx
+./Customers/Francis Crick Institute (The)/Datasets.xlsx
+./Customers/Francis Crick Institute (The)/ingest time projection (detailed) v0-08.xlsx
+./Customers/Francis Crick Institute (The)/ingest time projection (detailed) v0-09.xlsx
+./Customers/Francis Crick Institute (The)/LIF-CH-storage_usage_summary_2015-06profileB.xlsx
+./Customers/Francis Crick Institute (The)/LIF-CH-storage_usage_summary_2015-09profileG.xlsx
+./Customers/Francis Crick Institute (The)/LiF-exceptions.xlsx
+./Customers/Francis Crick Institute (The)/Lifeboat Project Service  Specification.docx
+./Customers/Francis Crick Institute (The)/Risk Register.xlsm
+./Customers/Francis Crick Institute (The)/Storage Profiles v0-02.xlsx
+./Customers/Francis Crick Institute (The)/The Francis Crick Institute - The Lifeboat Project v1-05.docx
+./Customers/Francis Crick Institute (The)/Superceeded/.DS_Store
+./Customers/Francis Crick Institute (The)/Superceeded/[333] The Francis Crick Institute - The Lifeboat Project v0-01.docx
+./Customers/Francis Crick Institute (The)/Superceeded/[333] The Francis Crick Institute - The Lifeboat Project v0-02.docx
+./Customers/Francis Crick Institute (The)/Superceeded/[333] The Francis Crick Institute - The Lifeboat Project v0-03.docx
+./Customers/Francis Crick Institute (The)/Superceeded/[333] The Francis Crick Institute - The Lifeboat Project v0-04.docx
+./Customers/Francis Crick Institute (The)/Superceeded/[333] The Francis Crick Institute - The Lifeboat Project v0-05.docx
+./Customers/Francis Crick Institute (The)/Superceeded/[333] The Francis Crick Institute - The Lifeboat Project v0-06 Jim comments.docx
+./Customers/Francis Crick Institute (The)/Superceeded/[333] The Francis Crick Institute - The Lifeboat Project v0-07 post Jim comments.docx
+./Customers/Francis Crick Institute (The)/Superceeded/Crick responsibilities matrix aav1.xlsx
+./Customers/Francis Crick Institute (The)/Superceeded/Crick responsibilities matrix aav2.png
+./Customers/Francis Crick Institute (The)/Superceeded/[333] The Francis Crick Institute - The Lifeboat Project v0-08.docx
+./Customers/Francis Crick Institute (The)/Superceeded/ingest time projection (detailed) v0-02.xlsx
+./Customers/Francis Crick Institute (The)/Superceeded/ingest time projection (detailed) v0-03.xlsx
+./Customers/Francis Crick Institute (The)/Superceeded/ingest time projection (detailed) v0-04.xlsx
+./Customers/Francis Crick Institute (The)/Superceeded/ingest time projection (detailed) v0-05.xlsx
+./Customers/Francis Crick Institute (The)/Superceeded/ingest time projection (detailed) v0-06.xlsx
+./Customers/Francis Crick Institute (The)/Superceeded/ingest time projection (detailed) v0-07.xlsx
+./Customers/Francis Crick Institute (The)/Superceeded/ingest time projection (detailed).xlsx
+./Customers/Francis Crick Institute (The)/Superceeded/ingest time projection.xlsx
+./Customers/Francis Crick Institute (The)/Superceeded/Phase 1 - LiF.png
+./Customers/Francis Crick Institute (The)/Superceeded/Phase 1 - Mill Hill .png
+./Customers/Francis Crick Institute (The)/Superceeded/Phase 2-3 Overview.png
+./Customers/Francis Crick Institute (The)/Superceeded/Phase 4 - Brill Place & Infinity.png
+./Customers/Francis Crick Institute (The)/Superceeded/Storage Profiles.xlsx
+./Customers/Francis Crick Institute (The)/Superceeded/The Francis Crick Institute - The Lifeboat Project v1-00.docx
+./Customers/Francis Crick Institute (The)/Superceeded/The Francis Crick Institute - The Lifeboat Project v1-01.docx
+./Customers/Francis Crick Institute (The)/Superceeded/The Francis Crick Institute - The Lifeboat Project v1-02 -MacBook Pro.docx
+./Customers/Francis Crick Institute (The)/Superceeded/Francis Crick June 17th aav1.docx
+./Customers/Francis Crick Institute (The)/Superceeded/The Francis Crick Institute - The Lifeboat Project v1-02 .docx
+./Customers/Francis Crick Institute (The)/Superceeded/The Francis Crick Institute - The Lifeboat Project v1-03.docx
+./Customers/Francis Crick Institute (The)/Superceeded/throughput testing.xlsx
+./Customers/Francis Crick Institute (The)/Superceeded/The Francis Crick Institute - The Lifeboat Project v1-04.docx
+./Customers/Francis Crick Institute (The)/Superceeded/Lifeboat - Process v0-02.graffle/data.plist
+./Customers/Francis Crick Institute (The)/Superceeded/Lifeboat - Process v0-02.graffle/image1.pdf
+./Customers/Francis Crick Institute (The)/Superceeded/Lifeboat - Process v0-02.graffle/image10.png
+./Customers/Francis Crick Institute (The)/Superceeded/Lifeboat - Process v0-02.graffle/image12.icns
+./Customers/Francis Crick Institute (The)/Superceeded/Lifeboat - Process v0-02.graffle/image13.icns
+./Customers/Francis Crick Institute (The)/Superceeded/Lifeboat - Process v0-02.graffle/image15.icns
+./Customers/Francis Crick Institute (The)/Superceeded/Lifeboat - Process v0-02.graffle/image16.icns
+./Customers/Francis Crick Institute (The)/Superceeded/Lifeboat - Process v0-02.graffle/image17.png
+./Customers/Francis Crick Institute (The)/Superceeded/Lifeboat - Process v0-02.graffle/image2.pdf
+./Customers/Francis Crick Institute (The)/Superceeded/Lifeboat - Process v0-02.graffle/image3.pdf
+./Customers/Francis Crick Institute (The)/Superceeded/Lifeboat - Process v0-02.graffle/image4.pdf
+./Customers/Francis Crick Institute (The)/Superceeded/Lifeboat - Process v0-02.graffle/image5.pdf
+./Customers/Francis Crick Institute (The)/Superceeded/Lifeboat - Process v0-02.graffle/image6.pdf
+./Customers/Francis Crick Institute (The)/Superceeded/Lifeboat - Process v0-02.graffle/image7.png
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/.DS_Store
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/Lifeboat - 2-2-1.png
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/Lifeboat - 2-2-2.png
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/Lifeboat - 3-2-1-1.png
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/Lifeboat - 3-2-1-2.png
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/Lifeboat - 3-2-1.png
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/Lifeboat - 3-2-2.png
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/Lifeboat - 3-2-3.png
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/Lifeboat - Phase 4-5-0.png
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/Lifeboat - Phase 4-5-0a.png
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/Lifeboat - Phase 4-5-0b.png
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/Lifeboat - Phase 4-5-1.png
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/Lifeboat - Phase 4-5-2.png
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/Lifeboat - Phase 4-5-3.png
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/Lifeboat - Phase 4-5-4.png
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/Lifeboat - Phase 4-5-6.png
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/Lifeboat - Phase 4-6-1.png
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/Lifeboat - Phase 4-6-2.png
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/Lifeboat - Phase 4-6-4.png
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/Lifeboat - Phase 4-6-5.png
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/Lifeboat - Phase 4-7-1.png
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/Lifeboat - Phase 4-7-2.png
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/Lifeboat - Phase 4-7-3.png
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/Lifeboat - Phase 4-7-4.png
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/Lifeboat - Phase 4-7-5.png
+./Customers/Francis Crick Institute (The)/Superceeded/images v0-02/Lifeboat - Phase 4-8-0.png
+./Customers/Francis Crick Institute (The)/Superceeded/Connectivity Diagrams.graffle/data.plist
+./Customers/Francis Crick Institute (The)/Superceeded/Connectivity Diagrams.graffle/image1.pdf
+./Customers/Francis Crick Institute (The)/Superceeded/Connectivity Diagrams.graffle/image10.png
+./Customers/Francis Crick Institute (The)/Superceeded/Connectivity Diagrams.graffle/image12.icns
+./Customers/Francis Crick Institute (The)/Superceeded/Connectivity Diagrams.graffle/image13.icns
+./Customers/Francis Crick Institute (The)/Superceeded/Connectivity Diagrams.graffle/image2.pdf
+./Customers/Francis Crick Institute (The)/Superceeded/Connectivity Diagrams.graffle/image3.pdf
+./Customers/Francis Crick Institute (The)/Superceeded/Connectivity Diagrams.graffle/image4.pdf
+./Customers/Francis Crick Institute (The)/Superceeded/Connectivity Diagrams.graffle/image5.pdf
+./Customers/Francis Crick Institute (The)/Superceeded/Connectivity Diagrams.graffle/image6.pdf
+./Customers/Francis Crick Institute (The)/Superceeded/Connectivity Diagrams.graffle/image7.png
+./Customers/Francis Crick Institute (The)/Superceeded/Connectivity Diagrams.graffle/image9.png
+./Customers/Francis Crick Institute (The)/mill hill/.DS_Store
+./Customers/Francis Crick Institute (The)/mill hill/20150706_070030 - Isilon - NFS Configuration.csv
+./Customers/Francis Crick Institute (The)/mill hill/20150707_145809 - Quota increases for Isilon Cluster (Isilon).htm
+./Customers/Francis Crick Institute (The)/mill hill/20150707_150804 - Isilon - SMB Configuration.csv
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-04.graffle/data.plist
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-04.graffle/image1.pdf
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-04.graffle/image10.png
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-04.graffle/image12.icns
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-04.graffle/image13.icns
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-04.graffle/image15.icns
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-04.graffle/image16.icns
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-04.graffle/image17.png
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-04.graffle/image18.pdf
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-04.graffle/image2.pdf
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-04.graffle/image20.pdf
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-04.graffle/image22.png
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-04.graffle/image23.png
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-04.graffle/image24.png
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-04.graffle/image3.pdf
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-04.graffle/image4.pdf
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-04.graffle/image5.pdf
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-04.graffle/image6.pdf
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-04.graffle/image7.png
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-03.graffle/data.plist
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-03.graffle/image1.pdf
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-03.graffle/image10.png
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-03.graffle/image12.icns
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-03.graffle/image13.icns
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-03.graffle/image15.icns
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-03.graffle/image16.icns
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-03.graffle/image17.png
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-03.graffle/image2.pdf
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-03.graffle/image3.pdf
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-03.graffle/image4.pdf
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-03.graffle/image5.pdf
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-03.graffle/image6.pdf
+./Customers/Francis Crick Institute (The)/Lifeboat - Process v0-03.graffle/image7.png
+./Customers/Francis Crick Institute (The)/images v0-03/.DS_Store
+./Customers/Francis Crick Institute (The)/images v0-03/Lifeboat - Phase 4-5-0.png
+./Customers/Francis Crick Institute (The)/images v0-03/Lifeboat - Phase 4-5-0a.png
+./Customers/Francis Crick Institute (The)/images v0-03/Lifeboat - Phase 4-5-0b.png
+./Customers/Francis Crick Institute (The)/images v0-03/Lifeboat - Phase 4-5-1.png
+./Customers/Francis Crick Institute (The)/images v0-03/Lifeboat - Phase 4-5-2.png
+./Customers/Francis Crick Institute (The)/images v0-03/Lifeboat - Phase 4-5-3.png
+./Customers/Francis Crick Institute (The)/images v0-03/Lifeboat - Phase 4-5-4.png
+./Customers/Francis Crick Institute (The)/images v0-03/Lifeboat - Phase 4-5-6.png
+./Customers/Francis Crick Institute (The)/images v0-03/Lifeboat - Phase 4-6-1.png
+./Customers/Francis Crick Institute (The)/images v0-03/Lifeboat - Phase 4-6-2.png
+./Customers/Francis Crick Institute (The)/images v0-03/Lifeboat - Phase 4-6-4.png
+./Customers/Francis Crick Institute (The)/images v0-03/Lifeboat - Phase 4-6-5.png
+./Customers/Francis Crick Institute (The)/images v0-03/Lifeboat - Phase 4-7-1.png
+./Customers/Francis Crick Institute (The)/images v0-03/Lifeboat - Phase 4-7-2.png
+./Customers/Francis Crick Institute (The)/images v0-03/Lifeboat - Phase 4-7-3.png
+./Customers/Francis Crick Institute (The)/images v0-03/Lifeboat - Phase 4-7-4.png
+./Customers/Francis Crick Institute (The)/images v0-03/Lifeboat - Phase 4-7-5.png
+./Customers/Francis Crick Institute (The)/images v0-03/Lifeboat - Phase 4-8-0.png
+./Customers/Francis Crick Institute (The)/images v0-03/Uber Ingest Calculations.xlsx
+./Customers/Francis Crick Institute (The)/background/.DS_Store
+./Customers/Francis Crick Institute (The)/background/20150615_164926 - Isilon - SnapShot information.txt
+./Customers/Francis Crick Institute (The)/background/[333] The Francis Crick Institute - The Lifeboat Project v0-09.docx
+./Customers/Francis Crick Institute (The)/background/Arkivum Appliance Front.png
+./Customers/Francis Crick Institute (The)/background/before.png
+./Customers/Francis Crick Institute (The)/background/Crick Scientific Platforms IT migration plan-Arkivum Summary 2015-02-28.docx
+./Customers/Francis Crick Institute (The)/background/Crick Scientific Platforms IT migration plan-Arkivum Summary 2015-02-28.pdf
+./Customers/Francis Crick Institute (The)/background/Downloads.md5
+./Customers/Francis Crick Institute (The)/background/EMC Isilon OneFS.pdf
+./Customers/Francis Crick Institute (The)/background/final.png
+./Customers/Francis Crick Institute (The)/background/h10718-isilon-smartlock-ds.pdf
+./Customers/Francis Crick Institute (The)/background/h8224-replication-isilon-synciq-wp.pdf
+./Customers/Francis Crick Institute (The)/background/library-best-practices-guide-data-protection-isilon-scale-out-storage.pdf
+./Customers/Francis Crick Institute (The)/background/library-configuration-guide-ndmp-ibm-tivoli-storage-manager-isilon.pdf
+./Customers/Francis Crick Institute (The)/background/Mill Hill - Rate of Change.xlsx
+./Customers/Francis Crick Institute (The)/background/Uber Ingest Calculations v2.xlsx
+./Customers/EAI/.DS_Store
+./Customers/EAI/EAI Architecture.graffle/data.plist
+./Customers/EAI/EAI Architecture.graffle/image1.png
+./Customers/EAI/EAI Architecture.graffle/image10.png
+./Customers/EAI/EAI Architecture.graffle/image11.tiff
+./Customers/EAI/EAI Architecture.graffle/image12.png
+./Customers/EAI/EAI Architecture.graffle/image13.png
+./Customers/EAI/EAI Architecture.graffle/image14.tiff
+./Customers/EAI/EAI Architecture.graffle/image15.tiff
+./Customers/EAI/EAI Architecture.graffle/image16.tiff
+./Customers/EAI/EAI Architecture.graffle/image17.png
+./Customers/EAI/EAI Architecture.graffle/image18.tiff
+./Customers/EAI/EAI Architecture.graffle/image19.tiff
+./Customers/EAI/EAI Architecture.graffle/image2.pdf
+./Customers/EAI/EAI Architecture.graffle/image20.pdf
+./Customers/EAI/EAI Architecture.graffle/image21.tiff
+./Customers/EAI/EAI Architecture.graffle/image22.tiff
+./Customers/EAI/EAI Architecture.graffle/image23.tiff
+./Customers/EAI/EAI Architecture.graffle/image24.tiff
+./Customers/EAI/EAI Architecture.graffle/image25.jpg
+./Customers/EAI/EAI Architecture.graffle/image27.pdf
+./Customers/EAI/EAI Architecture.graffle/image28.pdf
+./Customers/EAI/EAI Architecture.graffle/image3.png
+./Customers/EAI/EAI Architecture.graffle/image4.png
+./Customers/EAI/EAI Architecture.graffle/image6.png
+./Customers/EAI/EAI Architecture.graffle/image7.PNG
+./Customers/EAI/EAI Architecture.graffle/image8.PNG
+./Customers/EAI/EAI Architecture.graffle/image9.png
+./Customers/directory mining/.DS_Store
+./Customers/directory mining/Education Contacts.xlsx
+./Customers/directory mining/manchester ALC staff list.xlsx
+./Customers/directory mining/manchester staff (version 1).xlsx
+./Customers/British Library/.DS_Store
+./Customers/British Library/Arkivum for Actelion, 4-06-2015.pptx
+./Customers/British Library/Doc 1 - RFI OPS9750 Digital Library Specification Final (3).docx
+./Customers/British Library/Doc 2 - RFI OPS9750 Appendix 1 British Library Technical Standards.pdf
+./Customers/British Library/Doc 3 - RFI OPS9750 Open Source Software Policy.doc
+./Customers/British Library/Draft Architecture diagrams v2.pptx
+./Customers/British Library/FW British Library proposed architecture.pdf
+./Customers/ARCW/.DS_Store
+./Customers/ARCW/ARCW PoC Accounts.txt
+./Customers/ARCW/ARCW_criteria_07012015.docx
+./Customers/ARCW/ARCWArkivumtestingplansuccesscriteria(4).pdf
+./Customers/ARCW/pipeline3 - DIP upload failed.png
+./Customers/ARCW/SIP Restructuring - Drag 'n Drop fails.png
+./Customers/ARCW/PoC-keys/.DS_Store
+./Customers/ARCW/PoC-keys/pipeline01-privkey.pem
+./Customers/ARCW/PoC-keys/pipeline01.crt
+./Customers/ARCW/PoC-keys/pipeline01.key
+./Customers/ARCW/PoC-keys/pipeline02-privkey.pem
+./Customers/ARCW/PoC-keys/pipeline02.crt
+./Customers/ARCW/PoC-keys/pipeline02.key
+./Customers/ARCW/PoC-keys/pipeline03-privkey.pem
+./Customers/ARCW/PoC-keys/pipeline03.crt
+./Customers/ARCW/PoC-keys/pipeline03.key
+./Customers/ARCW/PoC-keys/pipeline04-privkey.pem
+./Customers/ARCW/PoC-keys/pipeline04.crt
+./Customers/ARCW/PoC-keys/pipeline04.key
+./Cost Modelling/Arkivum Cost Modelling v1-1.xlsx
+./Cost Modelling/Arkivum Cost Modelling v1-2.xlsx

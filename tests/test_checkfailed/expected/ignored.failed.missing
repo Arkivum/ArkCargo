@@ -1,0 +1,3 @@
+./dir_a/dir_b/extfile
+./dir_a/dir_b/none-existant/afile.txt
+./dir_0/broken

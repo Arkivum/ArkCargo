@@ -1,0 +1,5 @@
+./snapshot_tree/
+./snapshot_tree/dir_0/
+./snapshot_tree/dir_0/dir_1/
+./snapshot_tree/dir_0/dir_1/sym2dir/
+./snapshot_tree/dir_0/sym2ext/

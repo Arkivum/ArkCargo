@@ -1,0 +1,10 @@
+./dir_0/dir_1/sym2dir/emptyfile
+./dir_a/dir_b/extfile
+./dir_a/dir_b/none-existant/afile.txt
+./dir_0/dir_1/readme.txt
+./dir_0/sym2file
+./dir_0/emptyfile
+./dir_0/file-valid
+./dir_0/dir_1/sym2dir/file-valid
+./dir_0/dir_1/sym2dir/dir_1/readme.txt
+./dir_0/broken

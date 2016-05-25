@@ -1,0 +1,13 @@
+21e40bfcc48aabf1afb9bd008c789b98  /Users/chrispates/GitHub/checkfailed/test/datasets/snapshots/test-20160101T0400/.hiddenfile
+1a107e9be5bc5aaffdcde4b8528949d3  /Users/chrispates/GitHub/checkfailed/test/datasets/snapshots/test-20160101T0400/changedfroma2b.txt
+408f514eb33cb635761a8648058f767d  /Users/chrispates/GitHub/checkfailed/test/datasets/snapshots/test-20160101T0400/onlyinA.txt
+5f6dd96d8e045f07d36f57c3c202ad9d  /Users/chrispates/GitHub/checkfailed/test/datasets/snapshots/test-20160101T0400/sameinboth.txt
+1a107e9be5bc5aaffdcde4b8528949d3  /Users/chrispates/GitHub/checkfailed/test/datasets/snapshots/test-20160101T0400/sameinboth/changedfroma2b.txt
+408f514eb33cb635761a8648058f767d  /Users/chrispates/GitHub/checkfailed/test/datasets/snapshots/test-20160101T0400/sameinboth/onlyinA.txt
+5f6dd96d8e045f07d36f57c3c202ad9d  /Users/chrispates/GitHub/checkfailed/test/datasets/snapshots/test-20160101T0400/sameinboth/sameinboth.txt
+5f6dd96d8e045f07d36f57c3c202ad9d  /Users/chrispates/GitHub/checkfailed/test/datasets/snapshots/test-20160101T0400/sameinboth/onlyinA/moreinA.txt
+1a107e9be5bc5aaffdcde4b8528949d3  /Users/chrispates/GitHub/checkfailed/test/datasets/snapshots/test-20160101T0400/sameinboth/onlyinA/onlyA.txt
+408f514eb33cb635761a8648058f767d  /Users/chrispates/GitHub/checkfailed/test/datasets/snapshots/test-20160101T0400/sameinboth/onlyinA/onlyinA.txt
+1a107e9be5bc5aaffdcde4b8528949d3  /Users/chrispates/GitHub/checkfailed/test/datasets/snapshots/test-20160101T0400/onlyinA/changedfroma2b.txt
+408f514eb33cb635761a8648058f767d  /Users/chrispates/GitHub/checkfailed/test/datasets/snapshots/test-20160101T0400/onlyinA/onlyinA.txt
+5f6dd96d8e045f07d36f57c3c202ad9d  /Users/chrispates/GitHub/checkfailed/test/datasets/snapshots/test-20160101T0400/onlyinA/sameinboth.txt
