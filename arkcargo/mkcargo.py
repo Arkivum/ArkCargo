@@ -46,7 +46,7 @@ parser.set_defaults(sys_uname = platform.uname())
 parser.set_defaults(startTime = datetime.datetime.now())
 parser.set_defaults(processedFile = "")
 
-parser.add_argument('--version', action='version', version='%(prog)s 0.4.1')
+parser.add_argument('--version', action='version', version='%(prog)s 0.4.2')
 
 parser.add_argument('-s', dest='followSymlink', action='store_true', help='follow symlinks and ingest their target, defaults to recording symlinks and their targets in the symlink file.')
 
@@ -58,6 +58,8 @@ parser.add_argument('-n', nargs='?', metavar='name', dest='name', type=str, requ
 parser.add_argument('-t', nargs='?', metavar='yyyymmddThhmmss', dest='timestamp', type=str, required=True, help='Where a filesystem snapshot is being processed then it is important to use the timestamp from the newer snapshot.')
 
 parser.add_argument('-o', nargs='?', metavar='output directory', dest='output', type=str, default="output", help='the directory under which to write the output. <output directory>/<name>/<timestamp>/<output files>.')
+
+parser.add_argument('-w', nargs='?', metavar='work-in-progress directory', dest='wip', type=str, default="", help='the directory under which to store the work in progress output before moving to the. <output directory>/<name>/<timestamp>/<output files>.')
 
 parser.add_argument('-cargoMax', dest='cargoMax', default='10GB', help=argparse.SUPPRESS)
 
@@ -331,6 +333,13 @@ def cleanup():
         if os.path.isfile(filepath):
             os.remove(filepath)
     touch(os.path.join(args.filebase, '.complete'))
+    if args.wip !='':
+        outdir = os.path.join(args.output, args.name, args.timestamp)
+        os.makedirs(outdir)
+        for item in os.listdir(args.filebase):
+            src = os.path.join(args.filebase, item)
+            shutil.move(src, outdir)
+        os.rmdir(args.filebase)
     return;
 
 def prepStats():
@@ -1156,7 +1165,10 @@ if __name__ == '__main__':
             sys.stderr.write("Current not a directory!\n")
             sys.exit(-1)
 
-        args.filebase = os.path.join(args.output, args.name, args.timestamp)
+        if args.wip !='':
+            args.filebase = os.path.join(args.wip, "%s-%s"%(args.name, args.timestamp))
+        else:
+            args.filebase = os.path.join(args.output, args.name, args.timestamp)
         prepOutput()
 
         statsBoundaries, statsFields, stats = prepStats()
