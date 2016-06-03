@@ -697,7 +697,7 @@ def fileFull(fileQ, processedFiles):
                 cargoEntry(relPath)
     except (IOError, OSError) as e:
         errorMsg("%s %s"%(e, absPath))
-        isFailed(absPpath)
+        isFailed(absPath)
         pass
     fileQ.task_done()
     return;
