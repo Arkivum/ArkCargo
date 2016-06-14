@@ -1,0 +1,4 @@
+sym2dir/sameinboth.txt
+sym2dir/onlyinA.txt
+sameinboth/onlyinA/sym2dir/sameinboth.txt
+sameinboth/onlyinA/sym2dir/onlyinA.txt

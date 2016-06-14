@@ -17,7 +17,9 @@ from checks import checkPath, processListofPaths
 class test_checkFailed(unittest.TestCase):
     def setUp(self):
         self.testname=""
-        
+        self.specialChars = {}
+        self.specialChars[':'] = '\xee'
+
         pass
 
     def tearDown(self):
@@ -33,7 +35,7 @@ class test_checkFailed(unittest.TestCase):
         basePath = './test_checkfailed/snapshot_tree/'
 
         testPath ='dir_0/dir_1/sym2dir/emptyfile'
-        category, path = checkPath(testPath, basePath)
+        category, path = checkPath(self.specialChars, testPath, basePath)
         self.assertTrue(category == 'symlink' and path == 'dir_0/dir_1/sym2dir', "category = %s, %s, %s"%(category,testPath, path))
         pass
 
@@ -42,7 +44,7 @@ class test_checkFailed(unittest.TestCase):
         basePath = './test_checkfailed/snapshot_tree/'
 
         testPath ='dir_0/sym2file'
-        category, path = checkPath(testPath, basePath)
+        category, path = checkPath(self.specialChars, testPath, basePath)
         self.assertTrue(category == 'symlink' and path == 'dir_0/sym2file', "category = %s, %s, %s"%(category,testPath, path))
         pass
 
@@ -51,7 +53,7 @@ class test_checkFailed(unittest.TestCase):
         basePath = './test_checkfailed/snapshot_tree/'
 
         testPath = 'dir_a/dir_b/extfile'
-        category, path = checkPath(testPath, basePath)
+        category, path = checkPath(self.specialChars, testPath, basePath)
         self.assertTrue(category == 'failed.missing' and path == 'dir_a', "category = %s, %s, %s"%(category,testPath, path))
         pass
 
@@ -60,7 +62,7 @@ class test_checkFailed(unittest.TestCase):
         basePath = './test_checkfailed/snapshot_tree/'
         testPath = 'dir_0/dir_1/readme.txt'
 
-        category, path = checkPath(testPath, basePath)
+        category, path = checkPath(self.specialChars, testPath, basePath)
         self.assertTrue(category == 'rework' and path == testPath, "category = %s, %s, %s"%(category,testPath, path))
         pass
 
@@ -69,7 +71,7 @@ class test_checkFailed(unittest.TestCase):
         basePath = './test_checkfailed/snapshot_tree/'
         testPath = 'dir_0/broken'
 
-        category, path = checkPath(testPath, basePath)
+        category, path = checkPath(self.specialChars, testPath, basePath)
         self.assertTrue(category == 'failed.missing' and path == testPath, "category = %s, %s, %s"%(category,testPath, path))
         pass
 

@@ -10,6 +10,13 @@
 
 import os 
 
+def touch(path):
+    parent = os.path.dirname(path)
+    if not os.path.isdir(parent):
+       os.makedirs(parent)
+    with open(path, 'a'):
+        os.utime(path, None)
+
 def exists(path):
     if os.path.lexists(path) or os.path.exists(path):
         status = True
@@ -102,6 +109,19 @@ def isFileReg(path):
 def isFile(path):
     #the path or link points to a file
     return os.path.isfile(path);
+
+def hasSpecialChars(charMap, path):
+    return any(specialChar in path for specialChar in charMap.keys());
+        
+def subSpecialChars(charMap, path):
+    parent, file = os.path.split(path)
+    if any(specialChar in parent for specialChar in charMap.keys()):
+        return subSpecialChars(charMap, parent)
+    else:
+        
+        for specialChar in charMap.keys():
+             file = file.replace(specialChar, charMap[specialChar])
+        return os.path.join(parent, file);
 
 def classify(path, followSymlinks):
     classification = ''

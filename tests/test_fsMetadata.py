@@ -31,6 +31,10 @@ class test_fsMetadata(unittest.TestCase):
 
     def test_fsMetadata_create_bad(self):
         self.testname = sys._getframe().f_code.co_name
+        outputDir = os.path.join(os.getcwd(),'test_fsMetadata/', self.testname, 'output/')
+        if not os.path.exists(outputDir):
+            os.mkdir(outputDir)
+
         self.assertRaises(IOError, self.fsMetadata.create, os.path.join(os.getcwd(),'test_fsMetadata/', self.testname, 'output-broken/', 'cargo.md5'))
         pass
 

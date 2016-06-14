@@ -17,20 +17,18 @@ from cargo import cargoWriter
 
 class test_cargoWriter(unittest.TestCase):
     def setUp(self):
-        self.testname =""
+        self.testname = ""
         self.cargoWriter = cargoWriter()
         pass
 
     def tearDown(self):
-        testname = self.testname.split(self.__class__.__name__+'_',1)[1]
-        outputDir = os.path.join(os.getcwd(),'test_cargoWriter/', testname, 'output/')
+        outputDir = os.path.join(os.getcwd(),'test_cargoWriter/', self.testname, 'output/')
         if os.path.exists(outputDir):
            shutil.rmtree(outputDir)
            os.mkdir(outputDir)
         pass
 
     def test_cargoWriter_create_bad(self):
-        self.testname = sys._getframe().f_code.co_name
         self.assertRaises(IOError, self.cargoWriter.createAbsolute, os.path.join(os.getcwd(),'test_cargoWriter/', self.testname, 'output-broken/', 'cargo.md5'))
         pass
 

@@ -18,20 +18,15 @@ from ingestJob import ingestChunk
 
 class test_ingestChunk(unittest.TestCase):
     def setUp(self):
-        self.testname =""
+        self.testname = ""
         pass
 
     def tearDown(self):
         testname = self.testname.split(self.__class__.__name__+'_',1)[1]
-        outputDir = os.path.join(os.getcwd(),'test_ingestChunk/', testname, 'output/')
+        outputDir = os.path.join(os.getcwd(),'test_ingestChunk/', self.testname, 'output/')
         if os.path.exists(outputDir):
            shutil.rmtree(outputDir)
            os.mkdir(outputDir)
-        pass
-
-    def test_cargoFilename(self):
-        self.testname = sys._getframe().f_code.co_name
-        self.assertTrue(cargo.filename("test", "20160501T0000", 0) == "test-20160501T0000-000000.md5", "incorrect cargo filename format")
         pass
 
     def test_ingestChunk_create(self):
