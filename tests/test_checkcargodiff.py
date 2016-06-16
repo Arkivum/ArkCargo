@@ -59,6 +59,14 @@ class test_checkCargoDiff(unittest.TestCase):
         self.assertTrue(category == 'symlink' and path == 'sameinboth/onlyinA/sym2file', "category = %s, %s, %s"%(category,testPath, path))
         pass
 
+    def test_checkCargoDiff_directory(self):
+        self.testname = sys._getframe().f_code.co_name
+
+        testPath = 'sameinboth/onlyinA/'
+        category, path = checkPath(self.specialChars, testPath, self.basePath)
+        self.assertTrue(category == 'directory' and path == 'sameinboth/onlyinA', "category = %s, %s, %s"%(category,testPath, path))
+        pass
+
     def test_checkCargoDiff_missingdirtree(self):
         self.testname = sys._getframe().f_code.co_name
 
@@ -107,6 +115,7 @@ class test_checkCargoDiff(unittest.TestCase):
         ignore['failed.permissions'] = []
         ignore['charset'] = []
         ignore['symlink'] = []
+        ignore['directory'] = []
 
         failedFile = "test_checkcargodiff/snapshot-metadata/test/20160101T0400/snapshot/failed"
         snapshotDir = "datasets/snapshots/test-20160101T0400/"
@@ -115,10 +124,31 @@ class test_checkCargoDiff(unittest.TestCase):
         processFailedFile(outputDir, snapshotDir, failedFile, self.specialChars, ignore)
         pass
 
-    def test_checkCargoDiff_processCargoJobs(self):
+    def test_checkCargoDiff_processCargoJobs_clean(self):
         self.testname = sys._getframe().f_code.co_name
         snapMetadata = "test_checkcargodiff/snapshot-metadata/test/20160101T0400/"
 	cargodiffs = "test_checkcargodiff/%s/cargo-diff/"%self.testname
+        outputDir = "test_checkcargodiff/%s/output"%self.testname
+        expectedDir = "test_checkcargodiff/%s/expected"%self.testname
+
+        if os.path.exists(outputDir):
+           shutil.rmtree(outputDir)
+           os.mkdir(outputDir)
+
+        processCargoJob(outputDir, snapMetadata, cargodiffs)
+        outputList = os.listdir(outputDir)
+        expectedList = os.listdir(expectedDir)
+        self.assertTrue(outputList == expectedList, "listed of output files does not match expected")
+        for file in expectedList:
+             outputFile = os.path.join(outputDir, file)
+             expectedFile = os.path.join(expectedDir, file)
+             self.assertTrue(filecmp.dircmp(outputDir, expectedDir), "output does not match expected - %s"%file)
+        pass
+
+    def test_checkCargoDiff_processCargoJobs_skip(self):
+        self.testname = sys._getframe().f_code.co_name
+        snapMetadata = "test_checkcargodiff/snapshot-metadata/test/20160101T0400/"
+        cargodiffs = "test_checkcargodiff/%s/cargo-diff/"%self.testname
         outputDir = "test_checkcargodiff/%s/output"%self.testname
         expectedDir = "test_checkcargodiff/%s/expected"%self.testname
 

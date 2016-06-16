@@ -1,0 +1,13 @@
+21e40bfcc48aabf1afb9bd008c789b98  .hiddenfile
+1a107e9be5bc5aaffdcde4b8528949d3  changedfroma2b.txt
+408f514eb33cb635761a8648058f767d  onlyinA.txt
+5f6dd96d8e045f07d36f57c3c202ad9d  sameinboth.txt
+1a107e9be5bc5aaffdcde4b8528949d3  sameinboth/changedfroma2b.txt
+408f514eb33cb635761a8648058f767d  sameinboth/onlyinA.txt
+5f6dd96d8e045f07d36f57c3c202ad9d  sameinboth/sameinboth.txt
+5f6dd96d8e045f07d36f57c3c202ad9d  sameinboth/onlyinA/moreinA.txt
+1a107e9be5bc5aaffdcde4b8528949d3  sameinboth/onlyinA/onlyA.txt
+408f514eb33cb635761a8648058f767d  sameinboth/onlyinA/onlyinA.txt
+1a107e9be5bc5aaffdcde4b8528949d3  onlyinA/changedfroma2b.txt
+408f514eb33cb635761a8648058f767d  onlyinA/onlyinA.txt
+5f6dd96d8e045f07d36f57c3c202ad9d  onlyinA/sameinboth.txt

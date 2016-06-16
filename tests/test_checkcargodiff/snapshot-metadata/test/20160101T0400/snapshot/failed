@@ -7,11 +7,14 @@ sameinboth/onlyinA/sym2dir/changedfroma2b.txt
 sameinboth/onlyinA/sym2dir/sameinboth.txt
 sameinboth/onlyinA/sym2dir/onlyinA.txt
 sameinboth/onlyinA/sym2file
+directory/
+directory/onlyinA.txt
+directory/onlyinA/onlyA.txt
 missing/onlyinA/sym2dir/changedfroma2b.txt
 missing/onlyinA/sym2file
 missing.txt
 root.txt
 root/changedfroma2b.txt
 root/onlyinA/
-root/onlyinA.txt		
+root/onlyinA.txt
 root/sameinboth.txt

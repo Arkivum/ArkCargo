@@ -6,7 +6,7 @@ import fs
 def countlines(filename):
     linecount=0
     for line in open(filename, 'rb'):
-        linecount += 1
+        linecount = linecount + 1
     return linecount
 
 def readConfig(path):
@@ -148,7 +148,10 @@ def processCargodiffFile(outputDir, snapshotDir, cargodiffFile, specialChars, ig
 
 
 def processPath(outputDir, snapshotDir, line, specialChars, files, ignore):
+    trailingChars = len(line) - len(line.strip())
     testPath = line.strip()
+    for iteration in range(1, trailingChars):
+        testPath += u"\xee"
 
     category = childofIgnorePath(testPath, ignore)
     if category:
@@ -164,7 +167,7 @@ def processPath(outputDir, snapshotDir, line, specialChars, files, ignore):
             if category == 'symlink':
                 targetPath =os.path.relpath(os.path.realpath(os.path.join(snapshotDir, path)), snapshotDir)
                 writeOutput(outputDir, False, category, "%s %s"%(path, targetPath), files)
-            elif category == 'charset':
+            elif category in ['charset','directory']:
 	        writeOutput(outputDir, False, 'rework', path, files)
             else:
                 writeOutput(outputDir, False, category, path, files)
@@ -178,9 +181,12 @@ def processCargoJob(outputDir, snapMetadataDir, cargodiffDir):
     ignore['failed.permissions'] = []
     ignore['charset'] = []
     ignore['symlink'] = []
+    ignore['directory'] = []
 
     specialChars = {}
     specialChars[':'] = '\xee'
+    specialChars['?'] = '\xee'
+    specialChars['*'] = '\xee'
 
     configPath = os.path.join(snapMetadataDir, 'config')
     if not os.path.isfile(configPath):
