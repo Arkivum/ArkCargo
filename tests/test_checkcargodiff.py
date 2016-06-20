@@ -12,14 +12,15 @@ import unittest2 as unittest
 
 import os, sys, filecmp, shutil
 sys.path.append('../arkcargo')
-from checks import checkPath, processFailedFile, processCargoJob
+from checks import fs, checkPath, processFailedFile, processCargoJob
 
 class test_checkCargoDiff(unittest.TestCase):
     def setUp(self):
         self.testname=""
 
         self.specialChars = {}
-        self.specialChars[':'] = '\xee'   
+        self.specialChars[':'] = '-'   
+        self.specialChars[' '] = '+'   
 
         self.basePath = os.path.join(os.getcwd(), 'datasets/snapshots/test-20160101T0400/')
 
@@ -37,10 +38,14 @@ class test_checkCargoDiff(unittest.TestCase):
 
     def tearDown(self):
         testname = self.testname.split(self.__class__.__name__+'_',1)[1]
-        outputDir = './test_checkcargodiff/%s/output'%testname
-        if os.path.exists(outputDir):
-           shutil.rmtree(outputDir)
-           os.mkdir(outputDir)
+
+        tests = ['test_checkCargoDiff_processFailedFile', 'test_checkCargoDiff_processCargoJobs_clean']
+ 
+        for test in tests:
+            outputDir = './test_checkcargodiff/%s/output'%test
+            if os.path.exists(outputDir):
+                shutil.rmtree(outputDir)
+                os.mkdir(outputDir)
         pass
 
     def test_checkCargoDiff_childofsymlink(self):
@@ -49,6 +54,28 @@ class test_checkCargoDiff(unittest.TestCase):
         testPath ='sym2dir/sameinboth.txt'
         category, path = checkPath(self.specialChars, testPath, self.basePath)
         self.assertTrue(category == 'symlink' and path == 'sym2dir', "category = %s, %s, %s"%(category,testPath, path))
+        pass
+
+    def test_checkCargoDiff_specialchars_rework(self):
+        self.testname = sys._getframe().f_code.co_name
+
+        testPath ='sameinboth/samein:both.txt'
+        expectedPath ='sameinboth/samein-both.txt'
+
+        category, path = checkPath(self.specialChars, testPath, self.basePath)
+        self.assertTrue(path == expectedPath, "%s, %s"%(path, expectedPath))
+        self.assertTrue(category == 'rework', "category = %s"%category)
+        pass
+
+    def test_checkCargoDiff_specialchars_missing(self):
+        self.testname = sys._getframe().f_code.co_name
+
+        testPath ='sameinboth/missing:both.txt'
+        expectedPath ='sameinboth/missing:both.txt'
+
+        category, path = checkPath(self.specialChars, testPath, self.basePath)
+        self.assertTrue(path == expectedPath, "%s, %s"%(path, expectedPath))
+        self.assertTrue(category == 'failed.missing', "category = %s"%category)
         pass
 
     def test_checkCargoDiff_symlinktofile(self):

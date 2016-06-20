@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os, sys, re, argparse
+import os, sys, re, argparse, codecs
 import fs
 
 def countlines(filename):
@@ -70,13 +70,18 @@ def checkPath(charMap, candidate, snapshotDir):
             returnPath = relPath
         returnedCat, returnedPath = checkPath(charMap, parent, snapshotDir)
 
+    elif fs.hasSpecialChars(charMap, relPath):
+        returnCat = 'charset'
+        returnPath = fs.subSpecialChars(charMap, relPath)
+        returnedCat, returnedPath = checkPath(charMap, returnPath, snapshotDir)
+
+        if returnedCat != 'rework' and returnedPath != relPath:
+            returnedCat = 'failed.missing'
+            returnedPath = relPath 
+
     elif not fs.exists(absPath):
-        if not fs.hasSpecialChars(charMap, relPath):
-            returnCat = 'failed.missing'
-            returnPath = relPath
-        else:
-            returnCat = 'charset'
-            returnPath = fs.subSpecialChars(charMap, relPath)
+        returnCat = 'failed.missing'
+        returnPath = relPath
         returnedCat, returnedPath = checkPath(charMap, parent, snapshotDir)
 
     elif not os.access(absPath, os.R_OK):
@@ -107,14 +112,14 @@ def writeOutput(outPath, ignore, file, message, files):
             # where append mode doesn't create a file if it doesn't
             # already exist.
             mode = 'a' if os.path.exists(filePath) else 'w'
-            files[filename] = open(filePath, mode, 0)
+            files[filename] = codecs.open(filePath, mode, encoding="utf-8")
         except ValueError:
             sys.stderr.write("can't open %s"%file)
             sys.exit(-1)
 
     # write out the message to the end of the file
     try:
-        files[filename].write("%s\n"%message)
+        files[filename].write(u"%s\n"%message)
     except:
         sys.stderr.write("Cannot write to %s\n"%filePath)
         sys.stderr.write("%s: %s\n"%(filename, message))
@@ -148,10 +153,11 @@ def processCargodiffFile(outputDir, snapshotDir, cargodiffFile, specialChars, ig
 
 
 def processPath(outputDir, snapshotDir, line, specialChars, files, ignore):
+    specialChar = u"\xee"
     trailingChars = len(line) - len(line.strip())
     testPath = line.strip()
     for iteration in range(1, trailingChars):
-        testPath += u"\xee"
+        testPath += specialChar
 
     category = childofIgnorePath(testPath, ignore)
     if category:
@@ -159,6 +165,12 @@ def processPath(outputDir, snapshotDir, line, specialChars, files, ignore):
        return;
         
     category, path = checkPath(specialChars, testPath, snapshotDir)
+    if category == 'failed.missing' and not path.endswith(' '):
+        category2, path2 = checkPath(specialChars, testPath+specialChar, snapshotDir)
+        if category2 == 'rework':
+            category = category2
+            path = path2
+
     if category == 'rework':
         writeOutput(outputDir, False, category, path, files)
     elif (testPath != path):
@@ -187,6 +199,7 @@ def processCargoJob(outputDir, snapMetadataDir, cargodiffDir):
     specialChars[':'] = '\xee'
     specialChars['?'] = '\xee'
     specialChars['*'] = '\xee'
+    specialChars[' '] = '\xee'
 
     configPath = os.path.join(snapMetadataDir, 'config')
     if not os.path.isfile(configPath):
