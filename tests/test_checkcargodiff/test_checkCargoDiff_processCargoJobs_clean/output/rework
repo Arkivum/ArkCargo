@@ -1,4 +1,10 @@
+sameinboth/trailingspaces.txtî
+sameinboth/testîcase.txt
 directory
+root.txt
+root/changedfroma2b.txt
+root/onlyinA
+root/sameinboth.txt
 .hiddenfile
 changedfroma2b.txt
 onlyinA.txt

@@ -5,27 +5,27 @@ import fs
 
 def countlines(filename):
     linecount=0
-    for line in open(filename, 'rb'):
+    for line in codecs.open(filename, u'rb', encoding="utf-8"):
         linecount = linecount + 1
     return linecount
 
 def readConfig(path):
     regexDict = {
-        'dataset' : re.compile("name='([a-zA-Z0-9_\-]*)['|,]"),
-        'job' : re.compile("timestamp='(([0-9]{6,8})(T[0-9]{4,8})?)['|,]"),
-        'mode' : re.compile("mode='(full|incr)',"),
-        'snapshotCurrentPath' : re.compile(" snapshotCurrent='([a-zA-Z0-9_\/\ \-.]*)',")
+        u'dataset' : re.compile("name='([a-zA-Z0-9_\-]*)['|,]"),
+        u'job' : re.compile("timestamp='(([0-9]{6,8})(T[0-9]{4,8})?)['|,]"),
+        u'mode' : re.compile("mode='(full|incr)',"),
+        u'snapshotCurrentPath' : re.compile(" snapshotCurrent='([a-zA-Z0-9_\/\ \-.]*)',")
         }
 
     if os.path.isfile(path):
-        for i, line in enumerate(open(path)):
+        for i, line in enumerate(codecs.open(path, encoding="utf-8")):
             configParams={}
             for parameter in regexDict.keys():
                 param = re.search(regexDict[parameter], line)
                 if param:
                     configParams[parameter] = param.group(1)
                 else:
-                    print "problem reading %s from %s"%(parameter, path)
+                    print u"problem reading %s from %s"%(parameter, path)
                     exit(1)
     return configParams;
 
@@ -41,55 +41,55 @@ def checkPath(charMap, candidate, snapshotDir):
     relPath = os.path.relpath(absPath, snapshotDir)
     parent = os.path.dirname(relPath)
 
-    returnedCat = ""
-    returnedPath = ""
-    returnCat = ""
-    returnPath = ""
+    returnedCat = u""
+    returnedPath = u""
+    returnCat = u""
+    returnPath = u""
 
     if len(candidate) == 0:
-        returnCat = ''
+        returnCat = u''
     elif absPath != os.path.realpath(absPath):
-        returnCat = 'symlink'
+        returnCat = u'symlink'
         returnPath = relPath
         returnedCat, returnedPath = checkPath(charMap, parent, snapshotDir)
 
     elif fs.isDirReg(absPath):
         if os.access(absPath, os.R_OK):
-            returnCat = 'directory'
+            returnCat = u'directory'
             returnPath = relPath
         else:
-            returnCat = 'failed.permissions'
+            returnCat = u'failed.permissions'
             returnPath = relPath
 
     elif fs.isFileReg(absPath):
         if os.access(absPath, os.R_OK):
-            returnCat = 'rework'
+            returnCat = u'rework'
             returnPath = relPath
         else:
-            returnCat = 'failed.permissions'
+            returnCat = u'failed.permissions'
             returnPath = relPath
         returnedCat, returnedPath = checkPath(charMap, parent, snapshotDir)
 
     elif fs.hasSpecialChars(charMap, relPath):
-        returnCat = 'charset'
+        returnCat = u'charset'
         returnPath = fs.subSpecialChars(charMap, relPath)
         returnedCat, returnedPath = checkPath(charMap, returnPath, snapshotDir)
 
-        if returnedCat != 'rework' and returnedPath != relPath:
-            returnedCat = 'failed.missing'
+        if returnedCat != u'rework' and returnedPath != relPath:
+            returnedCat = u'failed.missing'
             returnedPath = relPath 
 
     elif not fs.exists(absPath):
-        returnCat = 'failed.missing'
+        returnCat = u'failed.missing'
         returnPath = relPath
         returnedCat, returnedPath = checkPath(charMap, parent, snapshotDir)
 
     elif not os.access(absPath, os.R_OK):
-        returnCat = 'failed.permissions'
+        returnCat = u'failed.permissions'
         returnPath = relPath
         returnedCat, returnedPath = checkPath(charMap, parent, snapshotDir)
 
-    if returnedCat not in ['', 'directory']:
+    if returnedCat not in ['', u'directory']:
         return(returnedCat, returnedPath)
 
     return (returnCat, returnPath);
@@ -98,7 +98,7 @@ def checkPath(charMap, candidate, snapshotDir):
 def writeOutput(outPath, ignore, file, message, files):
     if ignore:
         outPath = os.path.join(outPath,"ignored")
-        filename = "ignored.%s"%file
+        filename = u"ignored.%s"%file
     else:
 	filename = file
     filePath = os.path.join(outPath, file)
@@ -111,7 +111,7 @@ def writeOutput(outPath, ignore, file, message, files):
             # This is necessary for REALLY early 2.6.1 builds
             # where append mode doesn't create a file if it doesn't
             # already exist.
-            mode = 'a' if os.path.exists(filePath) else 'w'
+            mode = u'a' if os.path.exists(filePath) else u'w'
             files[filename] = codecs.open(filePath, mode, encoding="utf-8")
         except ValueError:
             sys.stderr.write("can't open %s"%file)
@@ -130,7 +130,7 @@ def processFailedFile(outputDir, snapshotDir, failedFile, specialChars, ignore):
     files = {}
     errorTotal = countlines(failedFile)
     
-    for line in open(failedFile, 'rb'):
+    for line in codecs.open(failedFile, u'rb', encoding="utf-8"):
         processPath(outputDir, snapshotDir, line, specialChars, files, ignore)
     return;
 
@@ -142,7 +142,7 @@ def processCargodiffFile(outputDir, snapshotDir, cargodiffFile, specialChars, ig
     if errorTotal == 0:
         return;
 
-    for line in open(cargodiffFile, 'rb'):
+    for line in codecs.open(cargodiffFile, u'rb', encoding="utf-8"):
         match = regexCargoDiff.match(line.strip())
         if not match:
             return;
@@ -165,22 +165,22 @@ def processPath(outputDir, snapshotDir, line, specialChars, files, ignore):
        return;
         
     category, path = checkPath(specialChars, testPath, snapshotDir)
-    if category == 'failed.missing' and not path.endswith(' '):
+    if category == u'failed.missing' and not path.endswith(' u'):
         category2, path2 = checkPath(specialChars, testPath+specialChar, snapshotDir)
-        if category2 == 'rework':
+        if category2 == u'rework':
             category = category2
             path = path2
 
-    if category == 'rework':
+    if category == u'rework':
         writeOutput(outputDir, False, category, path, files)
     elif (testPath != path):
         if path not in ignore[category]:
             ignore[category].append(path)
-            if category == 'symlink':
+            if category == u'symlink':
                 targetPath =os.path.relpath(os.path.realpath(os.path.join(snapshotDir, path)), snapshotDir)
-                writeOutput(outputDir, False, category, "%s %s"%(path, targetPath), files)
+                writeOutput(outputDir, False, category, u"%s %s"%(path, targetPath), files)
             elif category in ['charset','directory']:
-	        writeOutput(outputDir, False, 'rework', path, files)
+	        writeOutput(outputDir, False, u'rework', path, files)
             else:
                 writeOutput(outputDir, False, category, path, files)
     else:
@@ -196,12 +196,13 @@ def processCargoJob(outputDir, snapMetadataDir, cargodiffDir):
     ignore['directory'] = []
 
     specialChars = {}
-    specialChars[':'] = '\xee'
-    specialChars['?'] = '\xee'
-    specialChars['*'] = '\xee'
-    specialChars[' '] = '\xee'
+    specialChars[u':'] = u'\xee'
+    specialChars[u'?'] = u'\xee'
+    specialChars[u'*'] = u'\xee'
+    specialChars[u' '] = u'\xee'
+    specialChars[u'\\'] = u'\xee'
 
-    configPath = os.path.join(snapMetadataDir, 'config')
+    configPath = os.path.join(snapMetadataDir, u'config')
     if not os.path.isfile(configPath):
         print("%s - snapshot metadata not found, skipping"%configPath)
         return
@@ -209,33 +210,33 @@ def processCargoJob(outputDir, snapMetadataDir, cargodiffDir):
     dataset = config['dataset']
     job = config['job']
 
-    regexPattern = "^(%s)-(%s)(?:-(\d{6}))?(?:\.md5)"%(dataset, job)
+    regexPattern = u"^(%s)-(%s)(?:-(\d{6}))?(?:\.md5)"%(dataset, job)
     regexCargo = re.compile(regexPattern)
 
     snapshotDir = config['snapshotCurrentPath']
 
-    if os.path.isdir(os.path.join(snapMetadataDir, 'snapshot')):
-        failedFile = os.path.join(snapMetadataDir, 'snapshot', 'failed')
+    if os.path.isdir(os.path.join(snapMetadataDir, u'snapshot')):
+        failedFile = os.path.join(snapMetadataDir, u'snapshot', u'failed')
     else: 
-        failedFile = os.path.join(snapMetadataDir, 'failed')
+        failedFile = os.path.join(snapMetadataDir, u'failed')
 
     if os.path.isfile(failedFile):
-        processedFile = os.path.join(outputDir, '.processed', 'failed')
+        processedFile = os.path.join(outputDir, u'.processed', u'failed')
         if not os.path.isfile(processedFile):
-            print "processing - %s"%failedFile
+            print u"processing - %s"%failedFile
             processFailedFile(outputDir, snapshotDir, failedFile, specialChars, ignore)
             fs.touch(processedFile)
         else:
-            print "skipping - %s"%failedFile
+            print u"skipping - %s"%failedFile
 
     cargodiffList = [f for f in os.listdir(cargodiffDir) if re.match(regexCargo, f)]
     for file in cargodiffList:
-        processedFile = os.path.join(outputDir, '.processed', file)
+        processedFile = os.path.join(outputDir, u'.processed', file)
         cargodiffFile = os.path.join(cargodiffDir, file)
         if not os.path.isfile(processedFile):
-            print "processing - %s"%cargodiffFile
+            print u"processing - %s"%cargodiffFile
             processCargodiffFile(outputDir, snapshotDir, cargodiffFile, specialChars, ignore)
             fs.touch(processedFile)
         else:
-            print "skipping - %s"%cargodiffFile
+            print u"skipping - %s"%cargodiffFile
     return;

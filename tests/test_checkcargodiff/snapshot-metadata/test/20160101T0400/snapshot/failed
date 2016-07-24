@@ -8,6 +8,7 @@ sameinboth/onlyinA/sym2dir/sameinboth.txt
 sameinboth/onlyinA/sym2dir/onlyinA.txt
 sameinboth/onlyinA/sym2file
 sameinboth/trailingspaces.txt
+sameinboth/test\case.txt
 directory/
 directory/onlyinA.txt
 directory/onlyinA/onlyA.txt

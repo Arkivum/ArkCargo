@@ -39,9 +39,9 @@ class ingestChunk:
         self.boundaries = boundaries()
         self.metadata = fsMetadata()
         self.cargoFile = cargoWriter()
-        self.wipPath = ""
-        self.dataset = ""
-        self.timestamp = ""
+        self.wipPath = u""
+        self.dataset = u""
+        self.timestamp = u""
         return;
 
     @classmethod

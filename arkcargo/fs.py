@@ -14,7 +14,7 @@ def touch(path):
     parent = os.path.dirname(path)
     if not os.path.isdir(parent):
        os.makedirs(parent)
-    with open(path, 'a'):
+    with open(path, u'a'):
         os.utime(path, None)
 
 def exists(path):
@@ -124,34 +124,34 @@ def subSpecialChars(charMap, path):
         return os.path.join(parent, file);
 
 def classify(path, followSymlinks):
-    classification = ''
+    classification = u''
     if not exists(path):
-        classification = 'broken'
+        classification = u'broken'
     elif not followSymlinks:
         if isLink(path):
-            classification = 'symlink'
+            classification = u'symlink'
         elif isDirReg(path):
-            classification = 'directory'
+            classification = u'directory'
         elif isFileReg(path):
-            classification = 'file'
+            classification = u'file'
     else:
         if not exists(path):
-            classification = 'broken'
+            classification = u'broken'
         elif isDir(path):
-            classification = 'directory'
+            classification = u'directory'
         elif isFile(path):
-            classification = 'file'
+            classification = u'file'
         elif isLinkInvalid(path):
-            classification = 'broken'
+            classification = u'broken'
     return classification; 
 
 class fsMetadata:
 
     def __init__(self):
-        self.dirPath = ""
-        self.basePath = ""
-        self.EOLchar = '\n'
-        self.categories = ['added', 'modified', 'unchanged', 'symlink', 'directory', 'removed', 'failed']
+        self.dirPath = u""
+        self.basePath = u""
+        self.EOLchar = u'\n'
+        self.categories = ['added', u'modified', u'unchanged', u'symlink', u'directory', u'removed', u'failed']
         self.files = []
         return;
 
@@ -182,7 +182,7 @@ class fsMetadata:
                 # This is necessary for REALLY early 2.6.1 builds
                 # where append mode doesn't create a file if it doesn't
                 # already exist.
-                mode = 'a' if os.path.exists(filePath) else 'w'
+                mode = u'a' if os.path.exists(filePath) else u'w'
                 self.files[category] = open(filePath, mode, 0)
             except ValueError:
                 sys.stderr.write("can't open %s"%filePath)

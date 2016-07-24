@@ -18,7 +18,7 @@ import csv
 class boundaries:
 
     def __init__(self):
-        self.fields = {'Category' : ''}
+        self.fields = {'Category' : u''}
         self.boundaries = []
         return;
 
@@ -38,8 +38,8 @@ class boundaries:
                 statsBoundaries = csv.DictReader(csvfile)
                 for row in statsBoundaries:
                     self.boundaries.append((row['Name'], row['Lower'], row['Upper']))
-                    bytesfields['bytes '+row['Name']] = 0
-                    countfields['count '+row['Name']] = 0
+                    bytesfields['bytes u'+row['Name']] = 0
+                    countfields['count u'+row['Name']] = 0
         except ValueError:
             sys.stderr.write("Can't load stats boundaries from file %s (error: %s)\n"%(boundariesFile, ValueError))
             sys.exit(-1)
@@ -61,7 +61,7 @@ class boundaries:
 class stats:
 
     def __init__(self):
-        self.fields = {'Category' : ''}
+        self.fields = {'Category' : u''}
         self.boundaries = []
         self.categories = []
         self.stats = {}
@@ -120,7 +120,7 @@ class stats:
             newCounts[category] = 0
             newStats[category] = {}
             for field in self.fields:
-                if field == 'Category':
+                if field == u'Category':
                     newStats[category]['Category'] = category
                 else:   
                     newStats[category][field] = 0
@@ -136,15 +136,15 @@ class stats:
         if category in self.categories:
             for boundary in self.boundaries:
                 name, lower, upper = boundary
-                if (bytes >= int(lower) and upper == '') or (bytes >= int(lower) and bytes < int(upper)):
-                    self.stats[category]['count '+name] += 1
-                    self.stats[category]['bytes '+name] += bytes
+                if (bytes >= int(lower) and upper == u'') or (bytes >= int(lower) and bytes < int(upper)):
+                    self.stats[category]['count u'+name] += 1
+                    self.stats[category]['bytes u'+name] += bytes
             self.bytes[category] += bytes
             self.counts[category] += 1 
         return;
 
     def export(self, name, path):
-        filemode = "wb"
+        filemode = u"wb"
         # exports stats based on categories listed in includeStats & includeStats 
         try:
             outputFile = os.path.join(path,name+'.csv')

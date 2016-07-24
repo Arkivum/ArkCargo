@@ -22,6 +22,14 @@ class test_checkCargoDiff(unittest.TestCase):
         self.specialChars[':'] = '-'   
         self.specialChars[' '] = '+'   
 
+        tests = ['test_checkCargoDiff_processFailedFile', 'test_checkCargoDiff_processCargoJobs_clean']
+
+        for test in tests:
+            outputDir = './test_checkcargodiff/%s/output'%self.testname
+            if os.path.exists(outputDir):
+                shutil.rmtree(outputDir)
+                os.mkdir(outputDir)
+
         self.basePath = os.path.join(os.getcwd(), 'datasets/snapshots/test-20160101T0400/')
 
         configFileContent = "Namespace(cargo=True, cargoEOL='', cargoExt='.md5', cargoMax='10GB', cargoMaxBytes=10000000000, cargoPad=6, clean=False, cleanupFiles=['.running', 'processed.files', 'processed.dirs', 'savedstate.files', 'savedstate.dirs', 'resumestate.files', 'resumestate.dirs'], debug=False, executablePath='%s', file='', filebase='%s/test_checkcargodiff/snapshot-metadata/test/20160101T0400', followSymlink=False, includeStats={'cargo': [], 'snapshot': ['added', 'modified', 'unchanged', 'symlink', 'directory', 'removed', 'failed'], 'ingest': ['added', 'modified']}, lastRunPad=4, lastRunPrefix='run', mode='full', name='test', outFiles={'valid': ['processed.files', 'processed.dirs', 'savedstate.files', 'savedstate.dirs', 'resumestate.files', 'resumestate.dirs', 'error.log', 'debug.log', 'failed', 'added', 'modified', 'unchanged', 'symlink', 'directory', 'config', 'cargo', 'removed', 'queue.csv']}, output='%s/test_checkcargodiff/snapshot-metadata', prepMode='preserve', processedFile='', queueParams={'highWater': 9000, 'max': 100000, 'lowWater': 100}, relPathInCargos=False, resume=False, rework=None, rootDir=['processed', 'savedstate.files', 'savedstate.dirs', 'resumestate.files', 'resumestate.dirs', 'error.log', 'debug.log', 'config'], savedState=False, snapshotCurrent='%s/datasets/snapshots/test-20160101T0400/', snapshotDir=['failed', 'added', 'modified', 'unchanged', 'symlink', 'directory', 'removed'], snapshotEOL='', snapshots=['%s/datasets/snapshots/test-20160101T0400/'], startTime=datetime.datetime(2016, 5, 24, 23, 50, 32, 438800), statsBoundaries='%s/boundaries.csv', statsDir=['snapshot.csv', 'ingest.csv', 'cargo.csv'], sys_uname=('Darwin', 'Banoffee.local', '15.5.0', 'Darwin Kernel Version 15.5.0: Tue Apr 19 18:36:36 PDT 2016; root:xnu-3248.50.21~8/RELEASE_X86_64', 'x86_64', 'i386'), terminalPath='/Users/chrispates/GitHub/checkfailed/test', threads=8, timestamp='20160101T0400')"%(os.path.abspath('../arkcargo'), os.getcwd(), os.getcwd(), os.getcwd(), os.getcwd(), os.path.abspath('../arkcargo'))
@@ -39,13 +47,6 @@ class test_checkCargoDiff(unittest.TestCase):
     def tearDown(self):
         testname = self.testname.split(self.__class__.__name__+'_',1)[1]
 
-        tests = ['test_checkCargoDiff_processFailedFile', 'test_checkCargoDiff_processCargoJobs_clean']
- 
-        for test in tests:
-            outputDir = './test_checkcargodiff/%s/output'%test
-            if os.path.exists(outputDir):
-                shutil.rmtree(outputDir)
-                os.mkdir(outputDir)
         pass
 
     def test_checkCargoDiff_childofsymlink(self):
@@ -149,6 +150,8 @@ class test_checkCargoDiff(unittest.TestCase):
         outputDir = "test_checkcargodiff/%s/output"%self.testname
         expectedDir = "test_checkcargodiff/%s/expected"%self.testname
         processFailedFile(outputDir, snapshotDir, failedFile, self.specialChars, ignore)
+
+        
         pass
 
     def test_checkCargoDiff_processCargoJobs_clean(self):
