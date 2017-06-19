@@ -46,7 +46,7 @@ parser.set_defaults(sys_uname = platform.uname())
 parser.set_defaults(startTime = datetime.datetime.now())
 parser.set_defaults(processedFile = "")
 
-parser.add_argument('--version', action='version', version='%(prog)s 0.4.2')
+parser.add_argument('--version', action='version', version='%(prog)s 0.4.3')
 
 parser.add_argument('-s', dest='followSymlink', action='store_true', help='follow symlinks and ingest their target, defaults to recording symlinks and their targets in the symlink file.')
 
@@ -80,7 +80,6 @@ group.add_argument('--files', metavar='file', dest='file', nargs='+', default=""
 def touch(path):
     with open(path, 'a'):
         os.utime(path, None)
-
 
 # convert human readable version of a size in Bytes
 #
@@ -739,7 +738,9 @@ def dirFull(dirQ, fileQ, processedDirs):
                 childAbs = os.path.abspath(os.path.join(absPath, childItem))
                 childRel = os.path.join(relPath, childItem)
                 debugMsg("dirFull (%s)- %s"%(current_thread().getName(), childRel))
-                if os.path.isdir(childAbs):
+                if os.path.islink(childAbs):
+                    isSymlink(childRel, os.path.realpath(childAbs)) 
+                elif os.path.isdir(childAbs):
                     leafNode = False
                     dirQ.put(childRel)
                     debugMsg("dirQueue.put (%s)- %s"%(current_thread().getName(), childRel))
@@ -928,7 +929,9 @@ def dirIncr(dirQ, fileQ, processedDirs, processedFiles):
                 childAbs = os.path.abspath(os.path.join(absPath, childItem))
                 childRel = os.path.join(relPath, childItem)
                 debugMsg("dirIncr (%s)- %s"%(current_thread().getName(), childItem))
-                if os.path.isdir(childAbs):
+                if os.path.islink(childAbs):
+                    isSymlink(childRel, os.path.realpath(childAbs))   
+                elif os.path.isdir(childAbs):
                     leafNode = False
                     dirQ.put(childRel)
                     debugMsg("dirQueue.put (%s)- %s"%(current_thread().getName(), childRel))

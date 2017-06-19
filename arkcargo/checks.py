@@ -240,3 +240,15 @@ def processCargoJob(outputDir, snapMetadataDir, cargodiffDir):
         else:
             print u"skipping - %s"%cargodiffFile
     return;
+def processCargoChecklist(outputDir, snapshotDir, cargoChecklist):
+    regexCargoChecklist = re.compile("^(?:[0-9a-fA-F]{32}[  ]{2})(.*)$")
+
+    for line in codecs.open(cargoChecklist, u'rb', encoding="utf-8"):
+        match = regexCargoChecklist.match(line.strip())
+        if not match:
+            return;
+
+        testPath = ''.join(match.groups(1)).replace(snapshotDir, ".")
+        print "%s"%testPath
+
+    return;
