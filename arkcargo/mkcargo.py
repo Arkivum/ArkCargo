@@ -46,7 +46,9 @@ parser.set_defaults(sys_uname = platform.uname())
 parser.set_defaults(startTime = datetime.datetime.now())
 parser.set_defaults(processedFile = "")
 
-parser.add_argument('--version', action='version', version='%(prog)s 0.4.3')
+parser.add_argument('--version', action='version', version='%(prog)s 0.4.4')
+
+parser.add_argument('-c', nargs='?', metavar='cargo start', dest='cargoStart', type=int, default=0, help='the number to start cargo indexes from.')
 
 parser.add_argument('-s', dest='followSymlink', action='store_true', help='follow symlinks and ingest their target, defaults to recording symlinks and their targets in the symlink file.')
 
@@ -55,13 +57,13 @@ parser.add_argument('-j', metavar='threads', nargs='?', dest='threads', type=int
 parser.add_argument('-r', dest='relPathInCargos', action='store_true', help='use relative paths in cargos for rebasing of structures on ingest.')
 parser.add_argument('-n', nargs='?', metavar='name', dest='name', type=str, required=True, help='a meaningful name for the dataset, this should be consistent for all snapshot of a given dataset.')
 
-parser.add_argument('-t', nargs='?', metavar='yyyymmddThhmmss', dest='timestamp', type=str, required=True, help='Where a filesystem snapshot is being processed then it is important to use the timestamp from the newer snapshot.')
+parser.add_argument('-m', nargs='?', metavar='mount', dest='mount', type=str, help='the mount point under which the snapshots are located.')
 
 parser.add_argument('-o', nargs='?', metavar='output directory', dest='output', type=str, default="output", help='the directory under which to write the output. <output directory>/<name>/<timestamp>/<output files>.')
 
-parser.add_argument('-w', nargs='?', metavar='work-in-progress directory', dest='wip', type=str, default="", help='the directory under which to store the work in progress output before moving to the. <output directory>/<name>/<timestamp>/<output files>.')
+parser.add_argument('-t', nargs='?', metavar='yyyymmddThhmmss', dest='timestamp', type=str, required=True, help='Where a filesystem snapshot is being processed then it is important to use the timestamp from the newer snapshot.')
 
-parser.add_argument('-cargoMax', dest='cargoMax', default='10GB', help=argparse.SUPPRESS)
+parser.add_argument('-cargoMax', dest='cargoMax', default='100GB', help=argparse.SUPPRESS)
 
 parser.add_argument('--exists', dest='prepMode', choices=['clean', 'preserve', 'append'], default='preserve', help=argparse.SUPPRESS)
 parser.add_argument('--clean', action='store_true', help='if output directory exists delete its contents before process, by default previous output is preserved.')
@@ -80,6 +82,7 @@ group.add_argument('--files', metavar='file', dest='file', nargs='+', default=""
 def touch(path):
     with open(path, 'a'):
         os.utime(path, None)
+
 
 # convert human readable version of a size in Bytes
 #
@@ -332,13 +335,6 @@ def cleanup():
         if os.path.isfile(filepath):
             os.remove(filepath)
     touch(os.path.join(args.filebase, '.complete'))
-    if args.wip !='':
-        outdir = os.path.join(args.output, args.name, args.timestamp)
-        os.makedirs(outdir)
-        for item in os.listdir(args.filebase):
-            src = os.path.join(args.filebase, item)
-            shutil.move(src, outdir)
-        os.rmdir(args.filebase)
     return;
 
 def prepStats():
@@ -356,7 +352,7 @@ def prepStats():
 
 
 def loadStats(fields):
-    cargoCount = 0
+    cargoCount = args.cargoStart
 
     # imports stats and boundaries, only relevant for 'rework' mode
     try:
@@ -434,8 +430,8 @@ def updateStats(file, size):
             stats[file]['Vol'] += bytes
 
     if file == "cargo":
-        filename = args.name + "-" +  args.timestamp + "-" + str(stats[file]['Num']).zfill(args.cargoPad) + args.cargoExt
-        file = file + str(stats[file]['Num']).zfill(args.cargoPad)
+        filename = args.name + "-" +  args.timestamp + "-" + str(int(args.cargoStart)+stats[file]['Num']).zfill(args.cargoPad) + args.cargoExt
+        file = file + str(args.cargoStart+stats[file]['Num']).zfill(args.cargoPad)
         if file not in args.includeStats['cargo']:
             #add cargo file to list
             args.includeStats['cargo'].append(file)
@@ -558,7 +554,7 @@ def cargoEntry(path):
 
         try:
             if args.file:
-                absPath = path
+                absPath = os.path.join(args.mount, path)
             else:
                 absPath = os.path.abspath(os.path.join(args.snapshotCurrent, path))
             debugMsg("cargoEntry (%s) - %s"%(current_thread().getName(), absPath))
@@ -574,11 +570,11 @@ def cargoEntry(path):
             if args.relPathInCargos:
                 filePath = path
             else:
-                filePath = absPath
+                filePath = os.path.join("/", os.path.relpath(absPath, args.mount))
             resultsQueue.put(("cargo", os.path.getsize(absPath), "%s  %s%s"%(hash, filePath, args.cargoEOL)))
 
         except (IOError, OSError) as e:
-            errorMsg("%s %s"%(e, absPath))
+            errorMsg("cargoEntry %s %s"%(e, absPath))
             isFailed(path)
             pass
     return;
@@ -646,7 +642,7 @@ def snapshotFull(i, f, d):
                 processedDirs = open(processeddirPath, 'r')
 
     except (IOError, OSError) as e:
-        errorMsg("%s %s"%(e, processedfilePath))
+        errorMsg("snapshotFull %s %s"%(e, processedfilePath))
         exit(-1)
 
     while not terminateThreads:
@@ -686,7 +682,7 @@ def fileFull(fileQ, processedFiles):
                     fileQ.task_done()
                     return;
         if not os.access(absPath, os.R_OK):
-            errorMsg("Permission Denied: %s"%absPath)
+            errorMsg("fileFull Permission Denied: %s"%absPath)
             isFailed(relPath)
         else:
             if (not args.followSymlink) and os.path.islink(absPath):
@@ -695,8 +691,8 @@ def fileFull(fileQ, processedFiles):
                 isAdded(relPath, os.path.getsize(absPath))
                 cargoEntry(relPath)
     except (IOError, OSError) as e:
-        errorMsg("%s %s"%(e, absPath))
-        isFailed(absPath)
+        errorMsg("fileFull %s %s"%(e, absPath))
+        isFailed(absPpath)
         pass
     fileQ.task_done()
     return;
@@ -711,10 +707,10 @@ def dirFull(dirQ, fileQ, processedDirs):
 
         debugMsg("dirfull (%s)- %s"%(current_thread().getName(), relPath))
         if not os.path.exists(absPath):
-            errorMsg("Path does not exist: %s"%absPath)
+            errorMsg("dirFull Path does not exist: %s"%absPath)
             isFailed(relPath)
         elif not os.access(absPath, os.R_OK):
-            errorMsg("Permission Denied: %s"%absPath)
+            errorMsg("dirFull Permission Denied: %s"%absPath)
             isFailed(relPath)
         elif os.path.islink(absPath) and os.path.isdir(absPath):
             isSymlink(relPath, os.path.realpath(absPath))	
@@ -738,9 +734,7 @@ def dirFull(dirQ, fileQ, processedDirs):
                 childAbs = os.path.abspath(os.path.join(absPath, childItem))
                 childRel = os.path.join(relPath, childItem)
                 debugMsg("dirFull (%s)- %s"%(current_thread().getName(), childRel))
-                if os.path.islink(childAbs):
-                    isSymlink(childRel, os.path.realpath(childAbs)) 
-                elif os.path.isdir(childAbs):
+                if os.path.isdir(childAbs):
                     leafNode = False
                     dirQ.put(childRel)
                     debugMsg("dirQueue.put (%s)- %s"%(current_thread().getName(), childRel))
@@ -749,7 +743,7 @@ def dirFull(dirQ, fileQ, processedDirs):
                     debugMsg("fileQueue.put (%s)- %s"%(current_thread().getName(), childRel))
                 else:
                     isFailed(childRel)
-                    errorMsg("is not file, dir or symlink? - %s"%childRel)
+                    errorMsg("dirFull is not file, dir or symlink? - %s"%childRel)
 
             if leafNode:
                 # must be leaf node lets record it
@@ -764,7 +758,7 @@ def dirFull(dirQ, fileQ, processedDirs):
                 else:
                     isDirectory(relPath) 
     except (IOError, OSError) as e:
-        errorMsg("%s %s"%(e, absPath))
+        errorMsg("dirFull %s %s"%(e, absPath))
         isFailed(relPath)
         pass
     dirQ.task_done()
@@ -798,7 +792,7 @@ def snapshotIncr(i, f, d):
             if os.path.exists(processeddirPath):
                 processedDirs = open(processeddirPath, 'r')
     except (IOError, OSError) as e:
-        errorMsg("%s %s"%(e, processedfilePath))
+        errorMsg("snapshotIncr %s %s"%(e, processedfilePath))
         exit(-1)
 
     while not terminateThreads:
@@ -846,7 +840,7 @@ def fileIncr(fileQ, processedFiles):
                     return;
 
         if not os.access(absPath, os.R_OK):
-            errorMsg("Permission Denied; %s"%absPath)
+            errorMsg("fileIncr Permission Denied; %s"%absPath)
             isFailed(relPath)
         elif (not args.followSymlink) and os.path.islink(absPath):
             debugMsg("fileIncr (%s) isSymlink- %s"%(current_thread().getName(), relPath))
@@ -854,7 +848,7 @@ def fileIncr(fileQ, processedFiles):
         else:
             if os.path.isfile(oldPath):
                 if not os.access(oldPath, os.R_OK):
-                    errorMsg("Permission Denied (assuming Modified); %s"%oldPath)
+                    errorMsg("fileIncr Permission Denied (assuming Modified); %s"%oldPath)
                     isAdded(relPath, os.path.getsize(absPath))
                     cargoEntry(relPath)
                 elif filecmp.cmp(oldPath, absPath):
@@ -869,7 +863,7 @@ def fileIncr(fileQ, processedFiles):
                 isAdded(relPath, os.path.getsize(absPath))
                 cargoEntry(relPath)
     except (IOError, OSError) as e:
-        errorMsg("%s %s"%(e, absPath))
+        errorMsg("fileIncr %s %s"%(e, absPath))
         isFailed(relPath)
         pass
     debugMsg("fileIncr (%s)- %s - complete"%(current_thread().getName(), relPath))
@@ -887,7 +881,7 @@ def dirIncr(dirQ, fileQ, processedDirs, processedFiles):
         oldPath = os.path.abspath(os.path.join(args.snapshotPrevious, relPath))
         debugMsg("dirIncr (%s)- %s"%(current_thread().getName(), relPath))
         if not os.access(absPath, os.R_OK):
-            errorMsg("Permission Denied; %s"%absPath)
+            errorMsg("dirIncr Permission Denied; %s"%absPath)
             isFailed(relPath)
         elif (not args.followSymlink) and os.path.islink(absPath):
             isSymlink(relPath, os.path.realpath(absPath))
@@ -908,7 +902,7 @@ def dirIncr(dirQ, fileQ, processedDirs, processedFiles):
 
             if os.path.isdir(oldPath):
                 if not os.access(oldPath, os.R_OK):
-                    errorMsg("Permission Denied (assuming Modified); %s"%oldPath)
+                    errorMsg("dirIncr Permission Denied (assuming Modified); %s"%oldPath)
                 else: 
                     listingOld = os.listdir(oldPath)
                     debugMsg("dirIncr (%s) old - %s items"%(current_thread().getName(), len(listingOld)))
@@ -929,9 +923,7 @@ def dirIncr(dirQ, fileQ, processedDirs, processedFiles):
                 childAbs = os.path.abspath(os.path.join(absPath, childItem))
                 childRel = os.path.join(relPath, childItem)
                 debugMsg("dirIncr (%s)- %s"%(current_thread().getName(), childItem))
-                if os.path.islink(childAbs):
-                    isSymlink(childRel, os.path.realpath(childAbs))   
-                elif os.path.isdir(childAbs):
+                if os.path.isdir(childAbs):
                     leafNode = False
                     dirQ.put(childRel)
                     debugMsg("dirQueue.put (%s)- %s"%(current_thread().getName(), childRel))
@@ -940,7 +932,7 @@ def dirIncr(dirQ, fileQ, processedDirs, processedFiles):
                     debugMsg("fileQueue.put (%s)- %s"%(current_thread().getName(), childRel))
                 else:
                     isFailed(childRel)
-                    errorMsg("is not file, dir or symlink? - %s"%childRel)
+                    errorMsg("dirIncr is not file, dir or symlink? - %s"%childRel)
 
             if leafNode:
                 # must be leaf node lets record it
@@ -958,7 +950,7 @@ def dirIncr(dirQ, fileQ, processedDirs, processedFiles):
             debugMsg("fileQueue.put (%s)- file in dirQueue %s"%(current_thread().getName(), relPath))
             fileQ.put(relPath)
     except (IOError, OSError) as e:
-        errorMsg("%s %s"%(e, absPath))
+        errorMsg("dirIncr %s %s"%(e, absPath))
         isFailed(relPath)
         pass
     dirQueue.task_done()
@@ -984,7 +976,7 @@ def snapshotExplicit(i, f, d):
             if os.path.exists(processeddirPath):
                 processedDirs = open(processeddirPath, 'r')
     except (IOError, OSError) as e:
-        errorMsg("%s %s"%(e, processedfilePath))
+        errorMsg("snapshotExplicit %s %s"%(e, processedfilePath))
         exit(-1)
 
     while not terminateThreads:
@@ -1050,10 +1042,10 @@ def dirExplicit(dirQ, fileQ):
 
     try:
         if not os.path.exists(absPath):
-            errorMsg("Does not exist; %s"%absPath)
+            errorMsg("dirExplicit Does not exist; %s"%absPath)
             isFailed(absPath)
         elif not os.access(absPath, os.R_OK):
-            errorMsg("Permission Denied: %s"%absPath)
+            errorMsg("dirExplicit Permission Denied: %s"%absPath)
             isFailed(absPath)
         elif os.path.isdir(absPath):
             dirs, files = listDir(absPath)
@@ -1075,7 +1067,7 @@ def dirExplicit(dirQ, fileQ):
             debugMsg("fileQueue.put (%s)- file in dirQueue %s"%(current_thread().getName(), absPath))
             fileQ.put(absPath)
     except (IOError, OSError) as e:
-        errorMsg("%s %s"%(e, absPath))
+        errorMsg("dirExplicit %s %s"%(e, absPath))
         isFailed(relPath)
         pass
     dirQ.task_done()
@@ -1112,7 +1104,7 @@ def primeQueues(fileQueue, dirQueue):
                         fileQueue.put(relPath)
                     else:
                         isFailed(relPath)
-                        errorMsg("invalid path: %s"%relPath)
+                        errorMsg("primeQueues invalid path: %s"%relPath)
 
             print "creating resume state from saved state..."
             if os.path.exists(os.path.join(args.filebase, 'savedstate.files')):
@@ -1136,7 +1128,7 @@ def primeQueues(fileQueue, dirQueue):
             dirQueue.put(relPath)
         else:
             isFailed(relPath)
-            errorMsg("invalid path: %s"%relPath)
+            errorMsg("primeQueues invalid path: %s"%relPath)
     return;
 
 
@@ -1168,10 +1160,7 @@ if __name__ == '__main__':
             sys.stderr.write("Current not a directory!\n")
             sys.exit(-1)
 
-        if args.wip !='':
-            args.filebase = os.path.join(args.wip, "%s-%s"%(args.name, args.timestamp))
-        else:
-            args.filebase = os.path.join(args.output, args.name, args.timestamp)
+        args.filebase = os.path.join(args.output, args.name, args.timestamp)
         prepOutput()
 
         statsBoundaries, statsFields, stats = prepStats()
